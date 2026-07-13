@@ -492,8 +492,11 @@ const LocalDB = {
 // API — routes to GAS or LocalDB
 // =====================================================================
 const GAS_URL_KEY = 'grade_i_gas_url';
+// Default GAS URL baked into the app — every device connects automatically.
+// Admin can still override it per-device from ⚙️ ตั้งค่าระบบ if needed.
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzgZP9dm1Hw8qBruQThhaLuje9Erwrhdf9vwtUISNKGwRVW__MEMnURbn0wYt65s2W30g/exec';
 window.API = {
-  get gasUrl() { return localStorage.getItem(GAS_URL_KEY) || ''; },
+  get gasUrl() { return localStorage.getItem(GAS_URL_KEY) || DEFAULT_GAS_URL; },
   set gasUrl(v) { v ? localStorage.setItem(GAS_URL_KEY, v) : localStorage.removeItem(GAS_URL_KEY); },
   get isDemo() { return !this.gasUrl; },
 
@@ -683,7 +686,7 @@ const AdminSettings = ({ user }) => {
           <button onClick={saveGas} style={{ padding:'10px 20px', borderRadius:8, border:'none', background: saved?'#16a34a':'#0d2c6b', color:'#fff', cursor:'pointer', fontFamily:'Sarabun', fontWeight:600, whiteSpace:'nowrap' }}>{saved?'✓ บันทึกแล้ว':'บันทึก'}</button>
         </div>
         <div style={{ marginTop:10, fontSize:12, color:'var(--text-dim)' }}>วิธีรับ URL: เปิด Google Apps Script → Deploy → New Deployment → Web App → Copy URL</div>
-        {gasUrl && <button onClick={()=>{setGasUrl('');window.API.gasUrl='';toast('รีเซ็ตเป็น Demo Mode','info');}} style={{ marginTop:8, background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:12, fontFamily:'Sarabun' }}>✕ ล้าง URL (กลับสู่ Demo Mode)</button>}
+        {gasUrl !== DEFAULT_GAS_URL && <button onClick={()=>{window.API.gasUrl='';setGasUrl(window.API.gasUrl);toast('กลับไปใช้ URL เริ่มต้นของระบบแล้ว','info');}} style={{ marginTop:8, background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:12, fontFamily:'Sarabun' }}>✕ ล้าง URL ที่กำหนดเอง (กลับไปใช้ค่าเริ่มต้น)</button>}
       </Card>
 
       {/* Teacher menu visibility */}
