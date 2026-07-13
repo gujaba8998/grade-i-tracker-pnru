@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ระบบติดตามการแก้ไขเกรด I — วิชาศึกษาทั่วไป</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; background: #f5f6fa; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  input, select, textarea, button { font-family: 'Sarabun', sans-serif; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f1f1f1; }
+  ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+  @media print {
+    body > #root { display: none !important; }
+    .print-only { display: block !important; padding: 20px; font-family: 'Sarabun', sans-serif; }
+  }
+  .print-only { display: none; }
+</style>
+
+<!-- Bundler thumbnail -->
+<template id="__bundler_thumbnail" data-bg-color="#0d2c6b">
+  <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+    <!-- Graduation cap -->
+    <polygon points="60,20 90,35 60,50 30,35" fill="rgba(255,255,255,0.9)"/>
+    <rect x="80" y="35" width="3" height="14" fill="rgba(255,255,255,0.7)"/>
+    <circle cx="81.5" cy="50" r="3" fill="#c8a951"/>
+    <!-- Chart bars -->
+    <rect x="22" y="58" width="10" height="12" rx="2" fill="rgba(255,255,255,0.4)"/>
+    <rect x="36" y="52" width="10" height="18" rx="2" fill="rgba(255,255,255,0.6)"/>
+    <rect x="50" y="56" width="10" height="14" rx="2" fill="rgba(255,255,255,0.4)"/>
+    <rect x="64" y="48" width="10" height="22" rx="2" fill="#c8a951"/>
+    <rect x="78" y="54" width="10" height="16" rx="2" fill="rgba(255,255,255,0.4)"/>
+    <!-- Label -->
+    <text x="60" y="76" text-anchor="middle" font-size="6" fill="rgba(255,255,255,0.6)" font-family="sans-serif">ระบบติดตามเกรด I</text>
+  </svg>
+</template>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Suppress Babel-standalone internal unhandled rejections -->
+<script>
+window.addEventListener('unhandledrejection', e => {
+  const r = e.reason;
+  // Suppress Babel/React-internal non-Error rejections (plain objects without stack)
+  if (r && typeof r === 'object' && !(r instanceof Error) && !r.stack) {
+    e.preventDefault();
+  }
+});
+</script>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<!-- SheetJS -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<!-- Components -->
+<script type="text/babel" src="Shared.jsx"></script>
+<script type="text/babel" src="Login.jsx"></script>
+<script type="text/babel" src="StudentView.jsx"></script>
+<script type="text/babel" src="TeacherView.jsx"></script>
+<script type="text/babel" src="AdminDash.jsx"></script>
+<script type="text/babel" src="AdminStudents.jsx"></script>
+<script type="text/babel" src="AdminImport.jsx"></script>
+<script type="text/babel" src="AdminForm.jsx"></script>
+<script type="text/babel" src="AdminGrade.jsx"></script>
+
+<script>
+// =====================================================================
+// DEMO DATA — ใช้เมื่อไม่ได้ตั้งค่า Google Apps Script URL
+// =====================================================================
+const DEMO_STUDENTS = [
+  // ภาษาไทยเพื่อการสื่อสาร — ขาดสอบ (มีคะแนนสอบปลายภาครอบ 2)
+  { studentId:'6810122561019', studentName:'นายชุติเดช บุญช่วย',    courseCode:'0010102', courseName:'ภาษาไทยเพื่อการสื่อสาร', section:'002', teacher:'อ.สมหญิง ดีงาม', semester:'2/2568', bracketGrade:'E', cause:'ขาดสอบ', examScore:'20/60', examScoreOutOf30:10,   status:'รออาจารย์แก้เกรด', newGrade:'',  notes:'' },
+  { studentId:'6810121259007', studentName:'นายยสวัฒน์ อ่อนผึ้ง',   courseCode:'0010102', courseName:'ภาษาไทยเพื่อการสื่อสาร', section:'004', teacher:'อ.สมหญิง ดีงาม', semester:'2/2568', bracketGrade:'E', cause:'ขาดสอบ', examScore:'25/60', examScoreOutOf30:12.5, status:'รออาจารย์แก้เกรด', newGrade:'',  notes:'' },
+  { studentId:'6810121223003', studentName:'นางสาวสิธิพร นุ่มพันธ์',  courseCode:'0010102', courseName:'ภาษาไทยเพื่อการสื่อสาร', section:'004', teacher:'อ.สมหญิง ดีงาม', semester:'2/2568', bracketGrade:'E', cause:'ขาดสอบ', examScore:'47/60', examScoreOutOf30:23.5, status:'เสร็จสิ้น',         newGrade:'B', notes:'' },
+  { studentId:'6810121204015', studentName:'นางสาวธมลวรรณ ขวัญนอน',  courseCode:'0010102', courseName:'ภาษาไทยเพื่อการสื่อสาร', section:'005', teacher:'อ.สมหญิง ดีงาม', semester:'2/2568', bracketGrade:'E', cause:'ขาดสอบ', examScore:'23/60', examScoreOutOf30:11.5, status:'รออาจารย์แก้เกรด', newGrade:'',  notes:'' },
+  { studentId:'6811222346009', studentName:'นายกฤติณภัทร ชูพรหม',    courseCode:'0010102', courseName:'ภาษาไทยเพื่อการสื่อสาร', section:'007', teacher:'อ.สมหญิง ดีงาม', semester:'2/2568', bracketGrade:'E', cause:'ขาดสอบ', examScore:'21/60', examScoreOutOf30:10.5, status:'รอดำเนินการ',    newGrade:'',  notes:'' },
+  { studentId:'6811222346023', studentName:'นายณัฐดนัย บุตรโยจันโท',  courseCode:'0010102', courseName:'ภาษาไทยเพื่อการสื่อสาร', section:'007', teacher:'อ.สมหญิง ดีงาม', semester:'2/2568', bracketGrade:'E', cause:'ขาดสอบ', examScore:'49/60', examScoreOutOf30:24.5, status:'รอดำเนินการ',    newGrade:'',  notes:'' },
+  // การตระหนักรู้ฯ — ส่งงานไม่ครบ
+  { studentId:'6811111111001', studentName:'นายนวมินทร์ ลูกเหล็ม',        courseCode:'0040101', courseName:'การตระหนักรู้และปรับตัวต่อการเปลี่ยนแปลงในโลกยุคใหม่', section:'010', teacher:'อ.พรชนก สุขสม',    semester:'2/2568', bracketGrade:'B+', cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'เสร็จสิ้น',         newGrade:'B+', notes:'' },
+  { studentId:'6811111111002', studentName:'นายกฤษญาคา เหรียญทอง',       courseCode:'0040101', courseName:'การตระหนักรู้และปรับตัวต่อการเปลี่ยนแปลงในโลกยุคใหม่', section:'010', teacher:'อ.พรชนก สุขสม',    semester:'2/2568', bracketGrade:'B+', cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'รออาจารย์แก้เกรด', newGrade:'',   notes:'' },
+  { studentId:'6811111111003', studentName:'นายปิยพนธ์ ธงตะขบ',          courseCode:'0040101', courseName:'การตระหนักรู้และปรับตัวต่อการเปลี่ยนแปลงในโลกยุคใหม่', section:'010', teacher:'อ.พรชนก สุขสม',    semester:'2/2568', bracketGrade:'E',  cause:'ขาดสอบ',       examScore:'', examScoreOutOf30:0, status:'รอดำเนินการ',    newGrade:'',   notes:'' },
+  // ภาษาอังกฤษ — ส่งงานไม่ครบ
+  { studentId:'6811222222001', studentName:'นางสาวจิดาภา คล้ายเจียว',      courseCode:'0010202', courseName:'ภาษาอังกฤษเพื่อพัฒนาทักษะการเรียน',           section:'006', teacher:'อ.บุบผา รักดี',     semester:'2/2568', bracketGrade:'D+', cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'ส่งงานแล้ว',      newGrade:'',   notes:'' },
+  { studentId:'6811222222002', studentName:'นางสาวเฟียงพอ วัฒนกิตานนท์',  courseCode:'0010202', courseName:'ภาษาอังกฤษเพื่อพัฒนาทักษะการเรียน',           section:'006', teacher:'อ.บุบผา รักดี',     semester:'2/2568', bracketGrade:'C+', cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'รอดำเนินการ',    newGrade:'',   notes:'' },
+  { studentId:'6811333333001', studentName:'นางสาวพิยดา ทองกร',           courseCode:'0010203', courseName:'ภาษาอังกฤษสำหรับผู้เรียนในศตวรรษที่ 21',      section:'012', teacher:'อ.ชัยเดช มั่นคง',   semester:'2/2568', bracketGrade:'D',  cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'รอดำเนินการ',    newGrade:'',   notes:'' },
+  { studentId:'6811333333002', studentName:'นายกมล มณีอินทร',             courseCode:'0010203', courseName:'ภาษาอังกฤษสำหรับผู้เรียนในศตวรรษที่ 21',      section:'012', teacher:'อ.ชัยเดช มั่นคง',   semester:'2/2568', bracketGrade:'B',  cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'รออาจารย์แก้เกรด', newGrade:'',   notes:'' },
+  { studentId:'6811333333003', studentName:'นางสาวบุญยานุช ศิริชาติ',      courseCode:'0010203', courseName:'ภาษาอังกฤษสำหรับผู้เรียนในศตวรรษที่ 21',      section:'012', teacher:'อ.ชัยเดช มั่นคง',   semester:'2/2568', bracketGrade:'E',  cause:'ขาดสอบ',       examScore:'', examScoreOutOf30:0, status:'รอดำเนินการ',    newGrade:'',   notes:'' },
+  { studentId:'6811555555001', studentName:'นางสาวนิชานันท์ ใจข่วง',       courseCode:'0010203', courseName:'ภาษาอังกฤษสำหรับผู้เรียนในศตวรรษที่ 21',      section:'003', teacher:'อ.ชยุต วิชัย',      semester:'2/2568', bracketGrade:'D',  cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'ส่งงานแล้ว',      newGrade:'',   notes:'' },
+  { studentId:'6811555555002', studentName:'นางสาวอัญชสา ลีสอน',          courseCode:'0010203', courseName:'ภาษาอังกฤษสำหรับผู้เรียนในศตวรรษที่ 21',      section:'003', teacher:'อ.ชยุต วิชัย',      semester:'2/2568', bracketGrade:'C+', cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'เสร็จสิ้น',         newGrade:'C+', notes:'' },
+  { studentId:'6811555555003', studentName:'นายโชคภัส เทพา',               courseCode:'0010203', courseName:'ภาษาอังกฤษสำหรับผู้เรียนในศตวรรษที่ 21',      section:'015', teacher:'อ.ชยุต วิชัย',      semester:'2/2568', bracketGrade:'D',  cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'รอดำเนินการ',    newGrade:'',   notes:'' },
+  // ฉลาดคิดทางวิทยาศาสตร์
+  { studentId:'6811444444001', studentName:'นายคณิตศร ดีดวงพันธ์',         courseCode:'0030105', courseName:'ฉลาดคิดทางวิทยาศาสตร์',                        section:'001', teacher:'อ.วุฒิชัย เจริญ',   semester:'2/2568', bracketGrade:'E',  cause:'ขาดสอบ',       examScore:'', examScoreOutOf30:0, status:'รอดำเนินการ',    newGrade:'',   notes:'' },
+  { studentId:'6811444444002', studentName:'นางสาวศศิประภา สุธรรมมา',      courseCode:'0030105', courseName:'ฉลาดคิดทางวิทยาศาสตร์',                        section:'001', teacher:'อ.วุฒิชัย เจริญ',   semester:'2/2568', bracketGrade:'A',  cause:'ส่งงานไม่ครบ', examScore:'', examScoreOutOf30:0, status:'เสร็จสิ้น',         newGrade:'A',  notes:'' },
+  { studentId:'6811444444003', studentName:'นายทรงพัฒน์ เต็งเก',           courseCode:'0030105', courseName:'ฉลาดคิดทางวิทยาศาสตร์',                        section:'016', teacher:'อ.วันทนา สุข',    semester:'2/2568', bracketGrade:'E',  cause:'ขาดสอบ',       examScore:'', examScoreOutOf30:0, status:'รอดำเนินการ',    newGrade:'',   notes:'' },
+];
+
+const DEMO_USERS = [
+  { username:'admin',    password:'admin123',  role:'admin',   displayName:'ศุภมาศ (GE Admin)', courseAccess:[] },
+  { username:'teacher1', password:'teacher1',  role:'teacher', displayName:'อ.สมหญิง ดีงาม',   courseAccess:['0010102'] },
+  { username:'teacher2', password:'teacher2',  role:'teacher', displayName:'อ.พรชนก สุขสม',     courseAccess:['0040101'] },
+  { username:'teacher3', password:'teacher3',  role:'teacher', displayName:'อ.ชัยเดช มั่นคง',   courseAccess:['0010203'] },
+  { username:'teacher4', password:'teacher4',  role:'teacher', displayName:'อ.บุบผา รักดี',      courseAccess:['0010202'] },
+  { username:'teacher5', password:'teacher5',  role:'teacher', displayName:'อ.ชยุต วิชัย',      courseAccess:['0010203'] },
+  { username:'teacher6', password:'teacher6',  role:'teacher', displayName:'อ.วุฒิชัย เจริญ',   courseAccess:['0030105'] },
+];
+
+// =====================================================================
+// LOCAL DATABASE (localStorage-backed, used when no GAS URL set)
+// =====================================================================
+const LocalDB = {
+  _ver: 'v3',
+  _key: k => 'grade_i_' + k,
+  _get: k => JSON.parse(localStorage.getItem(LocalDB._key(k)) || 'null'),
+  _set: (k, v) => localStorage.setItem(LocalDB._key(k), JSON.stringify(v)),
+
+  init() {
+    // Reset if version mismatch
+    if (this._get('version') !== this._ver) {
+      ['students','users','initialized','version'].forEach(k => localStorage.removeItem(this._key(k)));
+    }
+    if (!this._get('initialized')) {
+      this._set('students', DEMO_STUDENTS);
+      this._set('users', DEMO_USERS);
+      this._set('version', this._ver);
+      this._set('initialized', true);
+    }
+  },
+
+  login(username, password) {
+    const users = this._get('users') || DEMO_USERS;
+    const u = users.find(u => u.username === username && u.password === password);
+    if (!u) return { success:false, error:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
+    return { success:true, role:u.role, displayName:u.displayName, courseAccess:u.courseAccess||[] };
+  },
+
+  getStudents(params) {
+    let list = this._get('students') || [];
+    if (params.studentId)    list = list.filter(s => String(s.studentId)  === String(params.studentId));
+    if (params.courseCode)   list = list.filter(s => s.courseCode  === params.courseCode);
+    if (params.status)       list = list.filter(s => s.status      === params.status);
+    if (params.cause)        list = list.filter(s => s.cause       === params.cause);
+    if (params.teacher)      list = list.filter(s => s.teacher     === params.teacher);
+    if (params.semester)     list = list.filter(s => s.semester    === params.semester);
+    if (params.courseAccess) {
+      const acc = Array.isArray(params.courseAccess) ? params.courseAccess : params.courseAccess.split(',');
+      if (acc.length > 0 && acc[0]) list = list.filter(s => acc.includes(s.courseCode));
+    }
+    return { success:true, data:list };
+  },
+
+  updateStatus(p) {
+    const list = this._get('students') || [];
+    const idx = list.findIndex(s => String(s.studentId)===String(p.studentId) && s.courseCode===p.courseCode && s.section===p.section);
+    if (idx < 0) return { success:false, error:'ไม่พบข้อมูล' };
+    list[idx] = { ...list[idx], status:p.status, notes:p.notes ?? list[idx].notes,
+      ...(p.examScore !== undefined        ? {examScore:p.examScore}               : {}),
+      ...(p.examScoreOutOf30 !== undefined ? {examScoreOutOf30:p.examScoreOutOf30} : {}),
+      ...(p.newGrade !== undefined         ? {newGrade:p.newGrade}                 : {}) };
+    this._set('students', list);
+    return { success:true };
+  },
+
+  importStudents(students, semester, clear) {
+    let list = clear ? [] : (this._get('students') || []);
+    students.forEach(s => {
+      const key = s.studentId + '_' + s.courseCode + '_' + s.section;
+      if (!list.find(x => x.studentId===s.studentId && x.courseCode===s.courseCode && x.section===s.section)) {
+        list.push({ ...s, semester: semester || s.semester, status: s.status || 'รอดำเนินการ' });
+      }
+    });
+    this._set('students', list);
+    return { success:true, imported:students.length };
+  },
+
+  importExamScores(scores) {
+    const list = this._get('students') || [];
+    scores.forEach(sc => {
+      const s = list.find(x => String(x.studentId) === String(sc.studentId));
+      if (s) {
+        if (!s.studentName) s.studentName = sc.studentName;
+        s.examScore = sc.rawScore;
+        s.examScoreOutOf30 = sc.score30;
+      }
+    });
+    this._set('students', list);
+    return { success:true, imported:scores.length };
+  },
+
+  getStats(semester) {
+    let list = this._get('students') || [];
+    if (semester) list = list.filter(s => s.semester === semester);
+    const stats = { total:list.length, byStatus:{}, byCause:{}, byCourse:{} };
+    list.forEach(s => {
+      const st = s.status || 'รอดำเนินการ';
+      stats.byStatus[st] = (stats.byStatus[st]||0)+1;
+      stats.byCause[s.cause] = (stats.byCause[s.cause]||0)+1;
+      const k = s.courseCode+'_'+s.section;
+      if (!stats.byCourse[k]) stats.byCourse[k]={ courseCode:s.courseCode, courseName:s.courseName, teacher:s.teacher, section:s.section, total:0, done:0 };
+      stats.byCourse[k].total++;
+      if (st==='เสร็จสิ้น') stats.byCourse[k].done++;
+    });
+    return { success:true, data:stats };
+  },
+
+  getUsers() {
+    const users = (this._get('users')||DEMO_USERS).map(u => { const {password,...rest}=u; return rest; });
+    return { success:true, data:users };
+  },
+
+  addUser(u) { const list=this._get('users')||DEMO_USERS; list.push(u); this._set('users',list); return{success:true}; },
+  deleteUser(username) { const list=(this._get('users')||DEMO_USERS).filter(u=>u.username!==username); this._set('users',list); return{success:true}; },
+};
+
+// =====================================================================
+// API — routes to GAS or LocalDB
+// =====================================================================
+const GAS_URL_KEY = 'grade_i_gas_url';
+window.API = {
+  get gasUrl() { return localStorage.getItem(GAS_URL_KEY) || ''; },
+  set gasUrl(v) { v ? localStorage.setItem(GAS_URL_KEY, v) : localStorage.removeItem(GAS_URL_KEY); },
+  get isDemo() { return !this.gasUrl; },
+
+  async _gas(params) {
+    const url = this.gasUrl + '?' + new URLSearchParams(params);
+    const r = await fetch(url); return r.json();
+  },
+  async _gasPost(data) {
+    const r = await fetch(this.gasUrl, { method:'POST', body:JSON.stringify(data) }); return r.json();
+  },
+
+  async login(u, p)       { return this.isDemo ? LocalDB.login(u,p)           : this._gas({action:'login',username:u,password:p}); },
+  async getStudents(p)    { return this.isDemo ? LocalDB.getStudents(p)        : this._gas({action:'getStudents',...p}); },
+  async getStats(sem)     { return this.isDemo ? LocalDB.getStats(sem)         : this._gas({action:'getStats',semester:sem}); },
+  async getUsers()        { return this.isDemo ? LocalDB.getUsers()            : this._gas({action:'getUsers'}); },
+  async updateStatus(p)   { return this.isDemo ? LocalDB.updateStatus(p)       : this._gasPost({action:'updateStatus',...p}); },
+  async importStudents(s,sem,clr) { return this.isDemo ? LocalDB.importStudents(s,sem,clr) : this._gasPost({action:'importStudents',students:s,semester:sem,clearExisting:clr}); },
+  async importExamScores(scores) { return this.isDemo ? LocalDB.importExamScores(scores) : this._gasPost({action:'importExamScores',scores}); },
+  async addUser(u)        { return this.isDemo ? LocalDB.addUser(u)            : this._gasPost({action:'addUser',user:u}); },
+  async deleteUser(name)  { return this.isDemo ? LocalDB.deleteUser(name)      : this._gasPost({action:'deleteUser',username:name}); },
+};
+
+LocalDB.init();
+</script>
+
+<script type="text/babel">
+// ── AdminSettings ─────────────────────────────────────────────
+const AdminSettings = ({ user }) => {
+  const [gasUrl, setGasUrl] = React.useState(window.API.gasUrl);
+  const [saved, setSaved] = React.useState(false);
+  const [users, setUsers] = React.useState([]);
+  const [newUser, setNewUser] = React.useState({ username:'', password:'', role:'teacher', displayName:'', courseAccess:'' });
+  const [addingUser, setAddingUser] = React.useState(false);
+  const toast = useToast();
+
+  React.useEffect(() => {
+    window.API.getUsers().then(r => setUsers(r.data || []));
+  }, []);
+
+  const saveGas = () => {
+    window.API.gasUrl = gasUrl.trim();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+    toast('บันทึกการตั้งค่าแล้ว', 'success');
+  };
+
+  const handleAddUser = async () => {
+    if (!newUser.username || !newUser.password || !newUser.displayName) { toast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+    setAddingUser(true);
+    const res = await window.API.addUser({ ...newUser, courseAccess: newUser.courseAccess });
+    if (res.success) {
+      toast('เพิ่มผู้ใช้สำเร็จ', 'success');
+      setNewUser({ username:'', password:'', role:'teacher', displayName:'', courseAccess:'' });
+      window.API.getUsers().then(r => setUsers(r.data || []));
+    } else { toast(res.error||'เกิดข้อผิดพลาด','error'); }
+    setAddingUser(false);
+  };
+
+  const handleDelete = async (username) => {
+    if (username === 'admin') { toast('ไม่สามารถลบ Admin หลักได้', 'error'); return; }
+    const res = await window.API.deleteUser(username);
+    if (res.success) { toast('ลบผู้ใช้แล้ว', 'success'); setUsers(p => p.filter(u => u.username !== username)); }
+  };
+
+  return (
+    <div style={{ padding:'28px 28px', maxWidth:720 }}>
+      <div style={{ fontSize:20, fontWeight:700, color:'#111827', marginBottom:24 }}>⚙️ ตั้งค่าระบบ</div>
+
+      {/* GAS URL */}
+      <Card style={{ padding:'20px 22px', marginBottom:24 }}>
+        <div style={{ fontWeight:700, color:'#374151', marginBottom:4 }}>🔗 Google Apps Script URL</div>
+        <div style={{ fontSize:13, color:'#6b7280', marginBottom:14 }}>
+          {window.API.isDemo ? '⚠️ ขณะนี้อยู่ในโหมด Demo (ข้อมูลเก็บใน Browser) — ใส่ URL เพื่อเชื่อมต่อ Google Sheets' : '✅ เชื่อมต่อ Google Sheets แล้ว'}
+        </div>
+        <div style={{ display:'flex', gap:10 }}>
+          <input value={gasUrl} onChange={e=>setGasUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" style={{ flex:1, padding:'10px 12px', borderRadius:8, border:'1px solid #e5e7eb', fontSize:13, fontFamily:'Sarabun', outline:'none' }} />
+          <button onClick={saveGas} style={{ padding:'10px 20px', borderRadius:8, border:'none', background: saved?'#16a34a':'#0d2c6b', color:'#fff', cursor:'pointer', fontFamily:'Sarabun', fontWeight:600, whiteSpace:'nowrap' }}>{saved?'✓ บันทึกแล้ว':'บันทึก'}</button>
+        </div>
+        <div style={{ marginTop:10, fontSize:12, color:'#9ca3af' }}>วิธีรับ URL: เปิด Google Apps Script → Deploy → New Deployment → Web App → Copy URL</div>
+        {gasUrl && <button onClick={()=>{setGasUrl('');window.API.gasUrl='';toast('รีเซ็ตเป็น Demo Mode','info');}} style={{ marginTop:8, background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:12, fontFamily:'Sarabun' }}>✕ ล้าง URL (กลับสู่ Demo Mode)</button>}
+      </Card>
+
+      {/* User Management */}
+      <Card style={{ overflow:'hidden' }}>
+        <div style={{ padding:'14px 20px', borderBottom:'1px solid #f0f0f0', fontWeight:700, color:'#374151' }}>👤 จัดการผู้ใช้งาน</div>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:14 }}>
+          <thead><tr style={{background:'#f9fafb'}}>
+            {['ชื่อผู้ใช้','ชื่อที่แสดง','บทบาท','รายวิชา',''].map(h=>(<th key={h} style={{padding:'9px 14px',textAlign:'left',fontSize:12,fontWeight:600,color:'#6b7280',borderBottom:'1px solid #e5e7eb'}}>{h}</th>))}
+          </tr></thead>
+          <tbody>
+            {users.map((u,i)=>(
+              <tr key={i} style={{borderBottom:'1px solid #f3f4f6'}}>
+                <td style={{padding:'9px 14px',fontFamily:'monospace',fontSize:13}}>{u.username}</td>
+                <td style={{padding:'9px 14px',fontWeight:500}}>{u.displayName}</td>
+                <td style={{padding:'9px 14px'}}><span style={{background:u.role==='admin'?'#eff6ff':'#f0fdf4',color:u.role==='admin'?'#1d4ed8':'#16a34a',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:600}}>{u.role==='admin'?'Admin':'อาจารย์'}</span></td>
+                <td style={{padding:'9px 14px',fontSize:12,color:'#9ca3af'}}>{u.courseAccess||'—'}</td>
+                <td style={{padding:'9px 14px'}}>{u.username!=='admin'&&<button onClick={()=>handleDelete(u.username)} style={{background:'none',border:'1px solid #fca5a5',color:'#dc2626',padding:'3px 10px',borderRadius:6,cursor:'pointer',fontSize:12,fontFamily:'Sarabun'}}>ลบ</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* Add user form */}
+        <div style={{ padding:'14px 20px', borderTop:'1px solid #f0f0f0', background:'#fafafa' }}>
+          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:10 }}>+ เพิ่มผู้ใช้ใหม่</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:10, marginBottom:10 }}>
+            <input value={newUser.username} onChange={e=>setNewUser(p=>({...p,username:e.target.value}))} placeholder="Username" style={{padding:'8px 10px',borderRadius:7,border:'1px solid #e5e7eb',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
+            <input value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} placeholder="Password" style={{padding:'8px 10px',borderRadius:7,border:'1px solid #e5e7eb',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
+            <input value={newUser.displayName} onChange={e=>setNewUser(p=>({...p,displayName:e.target.value}))} placeholder="ชื่อที่แสดง" style={{padding:'8px 10px',borderRadius:7,border:'1px solid #e5e7eb',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
+            <select value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))} style={{padding:'8px 10px',borderRadius:7,border:'1px solid #e5e7eb',fontSize:13,fontFamily:'Sarabun',background:'#fff',outline:'none'}}>
+              <option value="admin">Admin</option><option value="teacher">อาจารย์</option>
+            </select>
+            <input value={newUser.courseAccess} onChange={e=>setNewUser(p=>({...p,courseAccess:e.target.value}))} placeholder="รหัสวิชา (คั่นด้วย ,)" style={{padding:'8px 10px',borderRadius:7,border:'1px solid #e5e7eb',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
+          </div>
+          <button onClick={handleAddUser} disabled={addingUser} style={{padding:'8px 20px',borderRadius:7,border:'none',background:'#0d2c6b',color:'#fff',cursor:'pointer',fontFamily:'Sarabun',fontSize:13,fontWeight:600}}>
+            {addingUser?'กำลังเพิ่ม...':'เพิ่มผู้ใช้'}
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ── Main App ──────────────────────────────────────────────────
+const App = () => {
+  const [auth, setAuth] = React.useState(null);
+  const [activeTab, setActiveTab] = React.useState('dashboard');
+
+  const handleLogin = (result) => setAuth(result);
+  const handleLogout = () => { setAuth(null); setActiveTab('dashboard'); };
+
+  if (!auth) return <ToastProvider><Login onLogin={handleLogin} /></ToastProvider>;
+
+  if (auth.role === 'student') return (
+    <ToastProvider>
+      <StudentView studentId={auth.studentId} onBack={handleLogout} />
+    </ToastProvider>
+  );
+
+  if (auth.role === 'teacher') return (
+    <ToastProvider>
+      <TeacherView user={auth} onLogout={handleLogout} />
+    </ToastProvider>
+  );
+
+  // Admin
+  const DEMO_BANNER = window.API.isDemo;
+  return (
+    <ToastProvider>
+      {DEMO_BANNER && (
+        <div style={{ background:'#fef3c7', borderBottom:'1px solid #fcd34d', padding:'8px 20px', fontSize:13, color:'#92400e', textAlign:'center', zIndex:999 }}>
+          ⚠️ <strong>Demo Mode</strong> — ข้อมูลเก็บใน Browser นี้เท่านั้น ไปที่ <strong>ตั้งค่าระบบ</strong> เพื่อเชื่อมต่อ Google Sheets
+        </div>
+      )}
+      <AdminLayout user={auth} activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout}>
+        {activeTab === 'dashboard' && <AdminDashboard user={auth} />}
+        {activeTab === 'students'  && <AdminStudents  user={auth} />}
+        {activeTab === 'grade'     && <AdminGrade     user={auth} />}
+        {activeTab === 'import'    && <AdminImport    user={auth} />}
+        {activeTab === 'form'      && <AdminForm      user={auth} />}
+        {activeTab === 'settings'  && <AdminSettings  user={auth} />}
+      </AdminLayout>
+    </ToastProvider>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
