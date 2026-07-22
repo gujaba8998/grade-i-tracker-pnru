@@ -3,12 +3,17 @@
 const StudentView = ({ studentId, onBack, theme, toggleTheme }) => {
   const [records, setRecords] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
 
   React.useEffect(() => {
-    window.API.getStudents({ studentId }).then(res => {
-      setRecords(res.data || []);
-      setLoading(false);
-    });
+    setLoading(true); setError('');
+    window.API.lookupStudent(studentId)
+      .then(res => {
+        if (!res.success) setError(res.error || 'ไม่สามารถค้นหาข้อมูลได้');
+        setRecords(res.data || []);
+      })
+      .catch(() => setError('ไม่สามารถเชื่อมต่อระบบได้ กรุณาลองใหม่'))
+      .finally(() => setLoading(false));
   }, [studentId]);
 
   const STEPS = {
@@ -47,7 +52,9 @@ const StudentView = ({ studentId, onBack, theme, toggleTheme }) => {
       </div>
 
       <div style={{ maxWidth:680, margin:'0 auto', padding:'24px 16px' }}>
-        {records.length === 0 ? (
+        {error ? (
+          <EmptyState icon="⚠️" title="เกิดข้อผิดพลาด" sub={error} />
+        ) : records.length === 0 ? (
           <EmptyState icon="🔍" title="ไม่พบข้อมูล" sub={`ไม่พบรหัสนักศึกษา ${studentId} ในระบบ\nหากมีข้อสงสัยติดต่องานวิชาศึกษาทั่วไป`} />
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:20 }}>

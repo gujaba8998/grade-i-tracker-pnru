@@ -20,11 +20,11 @@ const AdminForm = ({ user }) => {
     window.API.getStudents({}).then(res => {
       const list = (res.data || []).filter(s => s.status === 'เสร็จสิ้น' || s.status === 'ส่งงานทะเบียนแล้ว');
       setStudents(list);
-      const sems = [...new Set(list.map(s => s.semester).filter(Boolean))].sort().reverse();
+      const sems = [...new Set(list.map(s => s.semester).filter(Boolean))].sort(window.compareSemestersDesc);
       setAllSemesters(sems);
       setSemester(prev => (prev && sems.includes(prev)) ? prev : (sems[0] || ''));
       setLoading(false);
-    });
+    }).catch(() => { setStudents([]); setLoading(false); toast('โหลดข้อมูลสำหรับแบบฟอร์มไม่สำเร็จ', 'error'); });
   }, []);
 
   const toggle = (key) => setSelected(prev => {
@@ -72,7 +72,7 @@ const AdminForm = ({ user }) => {
       for (const s of toUpdate) {
         try {
           const res = await window.API.updateStatus({
-            studentId: s.studentId, courseCode: s.courseCode, section: s.section,
+            studentId: s.studentId, courseCode: s.courseCode, section: s.section, semester: s.semester,
             status: 'ส่งงานทะเบียนแล้ว',
             by: user.displayName,
           });
@@ -81,7 +81,7 @@ const AdminForm = ({ user }) => {
       }
       // Refresh list (status filter might change visibility)
       setStudents(prev => prev.map(s =>
-        toUpdate.find(t => t.studentId===s.studentId && t.courseCode===s.courseCode && t.section===s.section)
+        toUpdate.find(t => t.studentId===s.studentId && t.courseCode===s.courseCode && t.section===s.section && t.semester===s.semester)
           ? { ...s, status: 'ส่งงานทะเบียนแล้ว' } : s
       ));
       setSelected(new Set());

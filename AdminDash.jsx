@@ -20,18 +20,17 @@ const AdminLayout = ({ user, activeTab, onTabChange, onLogout, children, theme, 
     <div className="gi-admin-shell" style={{ display:'flex', minHeight:'100vh', fontFamily:'Sarabun, sans-serif' }}>
       {/* Sidebar */}
       <div className="gi-sidebar" style={{
-        width: sidebarOpen ? 220 : 60, minHeight:'100vh',
-        background:'#0d2c6b', color:'#fff', flexShrink:0,
+        width: sidebarOpen ? 252 : 66, minHeight:'100vh',
+        background:'linear-gradient(180deg, #083d76 0%, #062f61 100%)', color:'#fff', flexShrink:0,
         transition:'width .2s', display:'flex', flexDirection:'column',
         boxShadow:'2px 0 12px rgba(0,0,0,.15)'
       }}>
-        {/* Logo */}
-        <div className="gi-side-logo" style={{ padding: sidebarOpen ? '20px 18px 16px' : '20px 14px 16px', borderBottom:'1px solid rgba(255,255,255,.1)', display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ fontSize:24, flexShrink:0 }}>🎓</span>
-          {sidebarOpen && <div>
-            <div style={{ fontSize:13, fontWeight:700, lineHeight:1.3 }}>ระบบเกรด I</div>
-            <div style={{ fontSize:10, opacity:.55, lineHeight:1.4 }}>วิชาศึกษาทั่วไป</div>
-          </div>}
+        {/* GE brand */}
+        <div className="gi-side-logo ge-sidebar-brand" style={{ padding: sidebarOpen ? '18px 18px 17px' : '14px 10px 16px', borderBottom:'1px solid rgba(255,255,255,.1)' }}>
+          {sidebarOpen ? <>
+            <div className="ge-brand-plaque" style={{ width:'100%', height:54, padding:'5px 8px' }}><img src="assets/logo-ge.png" alt="GE PNRU" /></div>
+            <div style={{ marginTop:11, fontSize:11, letterSpacing:.6, color:'rgba(255,255,255,.68)', textTransform:'uppercase', fontWeight:700 }}>Grade I tracker</div>
+          </> : <div style={{ fontSize:25, textAlign:'center' }}>🎓</div>}
         </div>
 
         {/* User info */}
@@ -49,8 +48,8 @@ const AdminLayout = ({ user, activeTab, onTabChange, onLogout, children, theme, 
             <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{
               display:'flex', alignItems:'center', gap:12, width:'100%',
               padding: sidebarOpen ? '11px 18px' : '11px 0', justifyContent: sidebarOpen ? 'flex-start' : 'center',
-              background: activeTab === tab.id ? 'rgba(255,255,255,.15)' : 'transparent',
-              borderLeft: activeTab === tab.id ? '3px solid #c8a951' : '3px solid transparent',
+              background: activeTab === tab.id ? 'rgba(8,167,215,.18)' : 'transparent',
+              borderLeft: activeTab === tab.id ? '3px solid #bdd52a' : '3px solid transparent',
               border:'none', color:'#fff', cursor:'pointer', fontFamily:'Sarabun', fontSize:14,
               transition:'all .15s',
             }}
@@ -101,7 +100,7 @@ const AdminDashboard = ({ user }) => {
     const list = res.data || [];
     const set = new Set();
     list.forEach(s => s.semester && set.add(s.semester));
-    const sorted = [...set].sort().reverse();
+    const sorted = [...set].sort(window.compareSemestersDesc);
     setSemesters(sorted);
     setSemester(prev => prev && sorted.includes(prev) ? prev : (sorted[0] || ''));
   }, []);
@@ -112,10 +111,10 @@ const AdminDashboard = ({ user }) => {
     window.API.getStats(semester).then(res => {
       setStats(res.data);
       setLoading(false);
-    });
+    }).catch(() => { setStats(null); setLoading(false); toast('โหลดข้อมูลภาพรวมไม่สำเร็จ', 'error'); });
   };
 
-  React.useEffect(() => { loadSemesters(); }, [loadSemesters]);
+  React.useEffect(() => { loadSemesters().catch(() => { setLoading(false); toast('โหลดรายการภาคการศึกษาไม่สำเร็จ', 'error'); }); }, [loadSemesters]);
   React.useEffect(() => { loadStats(); }, [semester]);
 
   const refresh = async () => { await loadSemesters(); loadStats(); };

@@ -19,7 +19,7 @@ const AdminStudents = ({ user }) => {
   const toast = useToast();
 
   // Row key helper (composite — student+course+section is unique)
-  const rowKey = (s) => `${s.studentId}_${s.courseCode}_${s.section}`;
+  const rowKey = (s) => `${s.semester}_${s.studentId}_${s.courseCode}_${s.section}`;
 
   const loadStudents = () => {
     setLoading(true);
@@ -28,10 +28,10 @@ const AdminStudents = ({ user }) => {
       setStudents(data);
       setCheckedIds(new Set());
       // Auto-pick newest semester if none selected yet (or invalid)
-      const sems = [...new Set(data.map(s => s.semester).filter(Boolean))].sort().reverse();
+      const sems = [...new Set(data.map(s => s.semester).filter(Boolean))].sort(window.compareSemestersDesc);
       setFilterSemester(prev => (prev && sems.includes(prev)) ? prev : (sems[0] || ''));
       setLoading(false);
-    });
+    }).catch(() => { setStudents([]); setLoading(false); toast('โหลดข้อมูลนักศึกษาไม่สำเร็จ', 'error'); });
   };
   React.useEffect(loadStudents, []);
 
@@ -39,7 +39,7 @@ const AdminStudents = ({ user }) => {
   const semesters = React.useMemo(() => {
     const set = new Set();
     students.forEach(s => s.semester && set.add(s.semester));
-    return [...set].sort().reverse(); // newest first
+    return [...set].sort(window.compareSemestersDesc); // newest first
   }, [students]);
 
   // ── Derived: courses limited by selected semester ──
@@ -107,6 +107,7 @@ const AdminStudents = ({ user }) => {
         studentId: selected.studentId,
         courseCode: selected.courseCode,
         section: selected.section,
+        semester: selected.semester,
         status: editStatus,
         notes: editNotes,
         by: user.displayName,
@@ -138,7 +139,7 @@ const AdminStudents = ({ user }) => {
     for (const t of targets) {
       try {
         const res = await window.API.updateStatus({
-          studentId: t.studentId, courseCode: t.courseCode, section: t.section,
+          studentId: t.studentId, courseCode: t.courseCode, section: t.section, semester: t.semester,
           status: editStatus,
           notes: editNotes || t.notes || '',
           by: user.displayName,
