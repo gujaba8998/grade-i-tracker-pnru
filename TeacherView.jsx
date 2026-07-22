@@ -32,6 +32,10 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
   const padCourse  = (c) => String(c == null ? '' : c).replace(/\D/g, '').padStart(7, '0');
   const padSection = (s) => String(s == null ? '' : s).replace(/\D/g, '').padStart(3, '0');
   const courseKey  = (code, sec) => padCourse(code) + '_' + padSection(sec);
+  const hasTeacher = (offering) => {
+    const ids = Array.isArray(offering?.teacherIds) ? offering.teacherIds : (offering?.teacherId ? [offering.teacherId] : []);
+    return ids.map(String).includes(String(teacherId));
+  };
 
   // ── Get this teacher's course+section keys for a specific semester ──
   const getCourseAccessForSemester = React.useCallback(async (sem) => {
@@ -40,7 +44,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
     const arr = Array.isArray(offeringsRaw) ? offeringsRaw : Object.values(offeringsRaw);
     // Match offerings to this teacher by teacherId, return normalized course+section keys
     const myKeys = arr
-      .filter(o => String(o.teacherId) === String(teacherId))
+      .filter(hasTeacher)
       .map(o => courseKey(o.courseCode, o.section));
     return [...new Set(myKeys)];
   }, [teacherId]);
@@ -69,8 +73,9 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
       setAvailableSemesters(sems);
       const latest = sems[0] || '';
       setSelectedSemester(latest);
+      setScoreSemester(latest);
       setLoading(false);
-    });
+    }).catch(() => { setAllStudents([]); setLoading(false); });
   }, []);
 
   // ── When semester changes, show ONLY this teacher's course+section ──
@@ -79,7 +84,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
     window.API.getCourseOfferings(selectedSemester).then(res => {
       const raw = res.data || {};
       const arr = Array.isArray(raw) ? raw : Object.values(raw);
-      const mine = arr.filter(o => String(o.teacherId) === String(teacherId));
+      const mine = arr.filter(hasTeacher);
       setTeacherCourses(mine.map(o => ({ courseCode: padCourse(o.courseCode), section: padSection(o.section), courseName: o.courseName })));
       const keySet = new Set(mine.map(o => courseKey(o.courseCode, o.section)));
       const filtered = allStudents.filter(s =>
@@ -87,12 +92,13 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
         keySet.has(courseKey(s.courseCode, s.section))
       );
       setStudents(filtered);
-    });
+    }).catch(() => { setStudents([]); setTeacherCourses([]); });
   }, [selectedSemester, allStudents]);
 
   // ── Filter students when semester changes ──────────────────────
   const handleSemesterSelect = (sem) => {
     setSelectedSemester(sem);
+    setScoreSemester(sem);
     setFilterStatus('');
     setSearch('');
   };
@@ -105,7 +111,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
       setScoreSemester(sem);
       loadScores(sem);
     }
-  }, [tab]);
+  }, [tab, selectedSemester]);
 
   // ── Print scores report ──────────────────────────────────
   const printScores = () => {
@@ -116,9 +122,9 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
       const sorted = [...g.students].sort((a,b) => Number(b.score30||0) - Number(a.score30||0));
       const scores30 = sorted.map(s => Number(s.score30||0));
       const avg = scores30.length ? (scores30.reduce((a,b)=>a+b,0)/scores30.length).toFixed(2) : '—';
-      const rows = sorted.map((s, i) => `<tr><td style="text-align:center">${i+1}</td><td>${s.studentId}</td><td>${s.studentName||'—'}</td><td style="text-align:center">${s.rawScore||'—'}</td><td style="text-align:center;font-weight:700">${s.score30}</td></tr>`).join('');
+      const rows = sorted.map((s, i) => `<tr><td style="text-align:center">${i+1}</td><td>${window.escapeHtml(s.studentId)}</td><td>${window.escapeHtml(s.studentName||'—')}</td><td style="text-align:center">${window.escapeHtml(s.rawScore||'—')}</td><td style="text-align:center;font-weight:700">${window.escapeHtml(s.score30)}</td></tr>`).join('');
       return `<div class="course">
-        <div class="course-head"><strong>${g.courseCode} ${g.courseName||''}</strong> • หมู่ ${g.section} • ${g.students.length} คน • เฉลี่ย ${avg}/30</div>
+        <div class="course-head"><strong>${window.escapeHtml(g.courseCode)} ${window.escapeHtml(g.courseName||'')}</strong> • หมู่ ${window.escapeHtml(g.section)} • ${g.students.length} คน • เฉลี่ย ${avg}/30</div>
         <table><thead><tr><th style="width:36px">ที่</th><th style="width:130px">รหัสนักศึกษา</th><th>ชื่อ - สกุล</th><th style="width:90px">คะแนนดิบ</th><th style="width:90px">คะแนน(30)</th></tr></thead><tbody>${rows}</tbody></table>
       </div>`;
     }).join('');
@@ -138,7 +144,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
         .foot { margin-top:28px; font-size:12px; display:flex; justify-content:space-between; }
       </style></head><body>
       <h1>คะแนนสอบปลายภาครอบ 2</h1>
-      <div class="sub">งานวิชาศึกษาทั่วไป มหาวิทยาลัยราชภัฏพระนคร${scoreSemester ? ' • ภาคเรียน '+scoreSemester : ''} • ผู้สอน: ${user.displayName||''} • รวม ${scoreResults.length} คน</div>
+      <div class="sub">งานวิชาศึกษาทั่วไป มหาวิทยาลัยราชภัฏพระนคร${scoreSemester ? ' • ภาคเรียน '+window.escapeHtml(scoreSemester) : ''} • ผู้สอน: ${window.escapeHtml(user.displayName||'')} • รวม ${scoreResults.length} คน</div>
       ${sections}
       <div class="notice" style="margin-top:20px; border:1px solid #999; background:#f7f7f7; padding:10px 14px; font-size:12.5px; line-height:1.7;">
         <strong>หมายเหตุ:</strong> ขอความอนุเคราะห์อาจารย์ผู้สอนนำคะแนนสอบปลายภาครอบ 2 ข้างต้น
@@ -154,19 +160,18 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
   const loadScores = async (sem) => {
     setScoreLoading(true);
     const targetSem = sem || selectedSemester;
-    // This teacher's course+section keys for the semester
-    const semKeys = new Set(await getCourseAccessForSemester(targetSem));
-    const params = { scoresOnly: true };
-    if (targetSem) params.semester = targetSem;
-    const res = await window.API.getExamScores(params);
-    // Keep only this teacher's course+section AND rows with actual score data
-    const withScores = (res.data || []).filter(s =>
-      semKeys.has(courseKey(s.courseCode, s.section)) &&
-      s.score30 !== null && s.score30 !== '' && s.score30 !== undefined && Number(s.score30) >= 0 &&
-      s.rawScore && s.rawScore !== ''
-    );
-    setScoreResults(withScores);
-    setScoreLoading(false);
+    if (!targetSem) { setScoreResults([]); setScoreLoading(false); return; }
+    try {
+      const semKeys = new Set(await getCourseAccessForSemester(targetSem));
+      const res = await window.API.getExamScores({ scoresOnly:true, semester:targetSem });
+      const withScores = (res.data || []).filter(s =>
+        semKeys.has(courseKey(s.courseCode, s.section)) &&
+        s.score30 !== null && s.score30 !== '' && s.score30 !== undefined && Number(s.score30) >= 0 &&
+        s.rawScore && s.rawScore !== ''
+      );
+      setScoreResults(withScores);
+    } catch (_) { setScoreResults([]); }
+    finally { setScoreLoading(false); }
   };
 
   const handleSemesterChange = (sem) => {
@@ -374,7 +379,6 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
               <label style={{ fontSize:13, color:'var(--text-muted)', whiteSpace:'nowrap' }}>ภาคการศึกษา</label>
               <select value={scoreSemester} onChange={e => handleSemesterChange(e.target.value)}
                 style={{ padding:'8px 14px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, fontFamily:'Sarabun', background:'var(--surface)', minWidth:140 }}>
-                <option value="">ทุกภาค</option>
                 {availableSemesters.map(s => <option key={s} value={s}>ภาค {s}</option>)}
               </select>
               <button onClick={() => loadScores(scoreSemester)} style={{ padding:'8px 14px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface)', cursor:'pointer', fontSize:13, fontFamily:'Sarabun' }}>🔄</button>

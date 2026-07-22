@@ -33,7 +33,8 @@ const AdminLog = ({ user }) => {
 
   const load = () => {
     setLoading(true);
-    window.API.getLogs({}).then(r => { setLogs(r.data || []); setLoading(false); });
+    window.API.getLogs({}).then(r => { setLogs(r.data || []); setLoading(false); })
+      .catch(() => { setLogs([]); setLoading(false); toast('โหลดประวัติไม่สำเร็จ', 'error'); });
   };
   React.useEffect(load, []);
 
@@ -143,7 +144,8 @@ const AdminCompare = ({ user }) => {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    window.API.getStudents({}).then(r => { setStudents(r.data || []); setLoading(false); });
+    window.API.getStudents({}).then(r => { setStudents(r.data || []); setLoading(false); })
+      .catch(() => { setStudents([]); setLoading(false); });
   }, []);
 
   const semesters = React.useMemo(() => sortSemestersDesc([...new Set(students.map(s => s.semester).filter(Boolean))]), [students]);
@@ -335,9 +337,9 @@ const AdminReports = ({ user }) => {
     if (rows.length === 0) { toast('ไม่มีข้อมูลให้ส่งออก', 'error'); return; }
     const win = window.open('', '_blank');
     const head = COLS.map(c => `<th>${c.label}</th>`).join('');
-    const body = rows.map(r => `<tr>${COLS.map(c => `<td>${r[c.key] ?? ''}</td>`).join('')}</tr>`).join('');
+    const body = rows.map(r => `<tr>${COLS.map(c => `<td>${window.escapeHtml(r[c.key] ?? '')}</td>`).join('')}</tr>`).join('');
     win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8">
-      <title>รายงานเกรด I ${semester}</title>
+      <title>รายงานเกรด I ${window.escapeHtml(semester)}</title>
       <style>
         @page { size: A4 landscape; margin: 12mm; }
         body { font-family: 'Sarabun', sans-serif; color:#111; }
@@ -351,9 +353,9 @@ const AdminReports = ({ user }) => {
       <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
       </head><body>
       <h1>รายงานสรุปนักศึกษาที่ติดเกรด I</h1>
-      <div class="sub">งานวิชาศึกษาทั่วไป มหาวิทยาลัยราชภัฏพระนคร • ภาคเรียน ${semester || 'ทั้งหมด'} • รวม ${rows.length} รายการ</div>
+      <div class="sub">งานวิชาศึกษาทั่วไป มหาวิทยาลัยราชภัฏพระนคร • ภาคเรียน ${window.escapeHtml(semester || 'ทั้งหมด')} • รวม ${rows.length} รายการ</div>
       <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
-      <div class="foot"><span>ออกรายงานเมื่อ ${new Date().toLocaleString('th-TH')}</span><span>ผู้ออกรายงาน: ${user?.displayName || '________'}</span></div>
+      <div class="foot"><span>ออกรายงานเมื่อ ${new Date().toLocaleString('th-TH')}</span><span>ผู้ออกรายงาน: ${window.escapeHtml(user?.displayName || '________')}</span></div>
       <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 400); };<\/script>
       </body></html>`);
     win.document.close();

@@ -71,9 +71,10 @@ const AdminImport = ({ user }) => {
       // Multi-teacher: append names
       const teacherName = t.teacherName.replace(/^อาจารย์\s*/, 'อ.');
       if (map[key]) {
-        map[key].teacher = map[key].teacher + ', ' + teacherName;
+        if (!map[key].teacher.split(', ').includes(teacherName)) map[key].teacher = map[key].teacher + ', ' + teacherName;
+        map[key].teacherIds = [...new Set([...(map[key].teacherIds || []), String(t.teacherId)])];
       } else {
-        map[key] = { courseCode: c.courseCode, section: c.section, courseName: c.courseName, teacher: teacherName, teacherId: t.teacherId, type: c.type };
+        map[key] = { courseCode: c.courseCode, section: c.section, courseName: c.courseName, teacher: teacherName, teacherId: t.teacherId, teacherIds: [String(t.teacherId)], type: c.type };
       }
     }));
     return { teachers, map };
@@ -92,12 +93,12 @@ const AdminImport = ({ user }) => {
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       for (const row of rows) {
         const col1 = row[1];
-        if (typeof col1 === 'number' && String(col1).length >= 10) {
-          const studentId   = String(col1);
+        if (/^\d{10,15}$/.test(String(col1 || '').trim())) {
+          const studentId   = String(col1).trim();
           const courseRaw   = String(row[2] || '');
           const courseCode  = courseRaw.padStart(7, '0');
           const section     = String(row[3] || '').padStart(3, '0');
-          const bracketGrade = String(row[5] || '');
+          const bracketGrade = String(row[5] || '').trim().toUpperCase();
           if (!bracketGrade) continue;
           const courseKey = courseCode + '_' + section;
           if (!courseMap[courseKey]) courseMap[courseKey] = { courseCode, section };
@@ -151,14 +152,19 @@ const AdminImport = ({ user }) => {
           continue;
         }
         const col1 = row[1];
-        if (typeof col1 === 'number' && String(col1).length >= 10) {
-          const studentId   = String(col1);
+        if (/^\d{10,15}$/.test(String(col1 || '').trim()) && currentCode && currentSection) {
+          const studentId   = String(col1).trim();
           const studentName = String(row[2] || '').trim();
           let rawScore = '', score30 = 0;
           for (let ci = 3; ci < row.length; ci++) {
-            if (typeof row[ci] === 'string' && /^\d+\/\d+$/.test(row[ci].trim())) { rawScore = row[ci].trim(); break; }
+            if (/^\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?$/.test(String(row[ci] || '').trim())) {
+              rawScore = String(row[ci]).trim().replace(/\s+/g, ''); break;
+            }
           }
-          if (score30Col > -1 && typeof row[score30Col] === 'number') score30 = row[score30Col];
+          if (score30Col > -1 && row[score30Col] !== '') {
+            const parsed = Number(row[score30Col]);
+            if (Number.isFinite(parsed)) score30 = parsed;
+          }
           allScores.push({ studentId, studentName, courseCode: currentCode, courseName: currentName, section: currentSection, rawScore, score30 });
         }
       }
@@ -227,6 +233,10 @@ const AdminImport = ({ user }) => {
 
   // ── Import handler ──────────────────────────────────────────
   const doImport = async () => {
+    if (!/^[1-3]\/\d{4}$/.test(semester.trim())) {
+      toast('รูปแบบภาคการศึกษาต้องเป็น เช่น 1/2569', 'error');
+      return;
+    }
     setImporting(true);
     try {
       let res;
@@ -304,19 +314,13 @@ const AdminImport = ({ user }) => {
                 <label style={{ fontSize:13, fontWeight:600, color:'var(--text)', display:'block', marginBottom:6 }}>
                   ภาคการศึกษา {tab === 'scores' && <span style={{color:'#dc2626'}}>*</span>}
                 </label>
-                <select value={semester} onChange={e=>setSemester(e.target.value)} style={{ padding:'9px 14px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, fontFamily:'Sarabun', background:'var(--surface)' }}>
-                  <option value="3/2568">3/2568</option>
-                  <option value="2/2568">2/2568</option>
-                  <option value="1/2568">1/2568</option>
-                  <option value="3/2567">3/2567</option>
-                  <option value="2/2567">2/2567</option>
-                  <option value="1/2567">1/2567</option>
-                </select>
+                <input value={semester} onChange={e=>setSemester(e.target.value.trim())} placeholder="เช่น 1/2569" inputMode="numeric"
+                  style={{ padding:'9px 14px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, fontFamily:'Sarabun', background:'var(--surface)', width:130 }} />
               </div>
               {tab === 'students' && (
                 <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:14, cursor:'pointer', paddingBottom:9 }}>
                   <input type="checkbox" checked={clearExisting} onChange={e=>setClearExisting(e.target.checked)} style={{ accentColor:'#dc2626' }} />
-                  <span style={{ color:'#dc2626', fontWeight:600 }}>ล้างข้อมูลเดิมก่อนนำเข้า</span>
+                  <span style={{ color:'#dc2626', fontWeight:600 }}>ล้างเฉพาะข้อมูลภาค {semester} ก่อนนำเข้า</span>
                 </label>
               )}
               {tab === 'students' && (

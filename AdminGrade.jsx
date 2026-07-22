@@ -21,15 +21,15 @@ const AdminGrade = ({ user }) => {
     window.API.getStudents({}).then(res => {
       const data = res.data || [];
       setStudents(data);
-      const sems = [...new Set(data.map(s => s.semester).filter(Boolean))].sort().reverse();
+      const sems = [...new Set(data.map(s => s.semester).filter(Boolean))].sort(window.compareSemestersDesc);
       setFilterSemester(prev => (prev && sems.includes(prev)) ? prev : (sems[0] || ''));
       setLoading(false);
-    });
+    }).catch(() => { setStudents([]); setLoading(false); toast('โหลดข้อมูลนักศึกษาไม่สำเร็จ', 'error'); });
   };
   React.useEffect(loadStudents, []);
 
   const semesters = React.useMemo(() => {
-    return [...new Set(students.map(s => s.semester).filter(Boolean))].sort().reverse();
+    return [...new Set(students.map(s => s.semester).filter(Boolean))].sort(window.compareSemestersDesc);
   }, [students]);
 
   const courses = React.useMemo(() => {
@@ -74,6 +74,7 @@ const AdminGrade = ({ user }) => {
         studentId:        editing.studentId,
         courseCode:       editing.courseCode,
         section:          editing.section,
+        semester:         editing.semester,
         status:           'เสร็จสิ้น',
         newGrade:         editGrade,
         notes:            editNotes,
@@ -84,6 +85,7 @@ const AdminGrade = ({ user }) => {
           s.studentId === editing.studentId &&
           s.courseCode === editing.courseCode &&
           s.section    === editing.section
+          && s.semester === editing.semester
             ? { ...s, status: 'เสร็จสิ้น', newGrade: editGrade, notes: editNotes }
             : s
         ));

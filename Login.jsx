@@ -26,50 +26,58 @@ const Login = ({ onLogin, theme, toggleTheme }) => {
   };
 
   return (
-    <div style={{
+    <div className="ge-login-stage" style={{
       minHeight:'100vh', display:'flex', flexDirection:'column',
       alignItems:'center', justifyContent:'center',
-      background:'linear-gradient(135deg, #0d2c6b 0%, #1a4499 60%, #0d2c6b 100%)',
+      backgroundImage:'linear-gradient(90deg, rgba(4,40,89,.93) 0%, rgba(6,55,112,.78) 52%, rgba(4,42,90,.44) 100%), url("assets/grade-progress-hero.png")',
+      backgroundSize:'cover', backgroundPosition:'center',
       position:'relative',
-      padding:24, fontFamily:'Sarabun, sans-serif'
+      padding:24, fontFamily:"'Noto Sans Thai', Sarabun, sans-serif"
     }}>
       {/* Theme toggle (floating) */}
       <button onClick={toggleTheme} title="สลับโหมดสว่าง/มืด" style={{
-        position:'absolute', top:18, right:18, width:40, height:40, borderRadius:10,
-        border:'1px solid rgba(255,255,255,.25)', background:'rgba(255,255,255,.12)',
+        position:'absolute', top:22, right:24, width:42, height:42, borderRadius:12,
+        border:'1px solid rgba(255,255,255,.3)', background:'rgba(4,35,79,.28)',
         color:'#fff', cursor:'pointer', fontSize:18,
       }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
 
       {/* Logo + Title */}
-      <div style={{ textAlign:'center', marginBottom:36 }}>
-        <div style={{ width:72, height:72, borderRadius:'50%', background:'rgba(255,255,255,.15)', border:'2px solid rgba(255,255,255,.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, margin:'0 auto 14px' }}>🎓</div>
-        <div style={{ color:'#fff', fontSize:22, fontWeight:700, lineHeight:1.3 }}>ระบบติดตามการแก้ไขเกรด I</div>
-        <div style={{ color:'rgba(255,255,255,.65)', fontSize:14, marginTop:6 }}>วิชาศึกษาทั่วไป มหาวิทยาลัยราชภัฏพระนคร</div>
+      <div style={{ textAlign:'center', marginBottom:26 }}>
+        <div className="ge-brand-plaque" style={{ width:242, height:72, margin:'0 auto 18px' }}>
+          <img src="assets/logo-ge.png" alt="Phranakhon General Education" />
+        </div>
+        <div style={{ display:'inline-flex', alignItems:'center', gap:8, color:'#dbeeff', fontSize:11, letterSpacing:1.3, textTransform:'uppercase', fontWeight:700 }}>
+          <span style={{ width:30, height:2, background:'#bdd52a' }} /> Grade I management
+        </div>
+        <div style={{ color:'#fff', fontSize:26, fontWeight:700, lineHeight:1.32, marginTop:8 }}>ระบบติดตามการแก้ไขเกรด I</div>
+        <div style={{ color:'rgba(255,255,255,.78)', fontSize:14, marginTop:5 }}>วิชาศึกษาทั่วไป มหาวิทยาลัยราชภัฏพระนคร</div>
       </div>
 
       {/* Card */}
-      <div style={{ background:'var(--surface)', borderRadius:16, boxShadow:'0 20px 60px rgba(0,0,0,.3)', width:'100%', maxWidth:420, overflow:'hidden' }}>
+      <div style={{ background:'rgba(255,255,255,.98)', borderRadius:22, boxShadow:'0 26px 70px rgba(1,22,55,.32)', width:'100%', maxWidth:438, overflow:'hidden', border:'1px solid rgba(255,255,255,.55)' }}>
 
         {!mode ? (
           // Role selector
-          <div style={{ padding:'32px 32px 28px' }}>
-            <div style={{ fontSize:16, fontWeight:600, color:'var(--text)', marginBottom:20, textAlign:'center' }}>เข้าสู่ระบบในฐานะ</div>
+          <div style={{ padding:'30px 32px 30px' }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#0b6f92', marginBottom:5, textAlign:'center', letterSpacing:.4 }}>เลือกบทบาทของคุณ</div>
+            <div style={{ fontSize:18, fontWeight:700, color:'#10253b', marginBottom:22, textAlign:'center' }}>เข้าสู่ระบบเพื่อดำเนินการต่อ</div>
             <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
               {[
-                { key:'admin', icon:'🛡️', title:'ผู้ดูแลระบบ (Admin)', sub:'จัดการข้อมูลและติดตามสถานะ', color:'#0d2c6b' },
-                { key:'teacher', icon:'👨‍🏫', title:'อาจารย์ผู้สอน', sub:'ดูรายชื่อนักศึกษาในรายวิชา', color:'#1a4499' },
-                { key:'student', icon:'🎒', title:'นักศึกษา', sub:'ตรวจสอบสถานะการแก้ไขเกรด I', color:'var(--text)' },
+                { key:'admin', icon:'🛡️', title:'ผู้ดูแลระบบ', sub:'จัดการข้อมูลและติดตามสถานะ', color:'#0b3f7a', soft:'#edf4ff' },
+                { key:'teacher', icon:'👨‍🏫', title:'อาจารย์ผู้สอน', sub:'ดูข้อมูลเฉพาะรายวิชาที่รับผิดชอบ', color:'#0789b6', soft:'#e8f8fc' },
+                { key:'student', icon:'🎒', title:'นักศึกษา', sub:'ตรวจสอบสถานะการแก้ไขเกรด I', color:'#7a9100', soft:'#f4f8df' },
               ].map(r => (
-                <button key={r.key} onClick={() => { setMode(r.key); setError(''); }} style={{
+                <button className="ge-role-option" key={r.key} onClick={() => { setMode(r.key); setError(''); }} style={{
+                  '--role-accent':r.color,
                   display:'flex', alignItems:'center', gap:14, padding:'14px 18px',
-                  borderRadius:10, border:`2px solid #e5e7eb`, background:'var(--surface-2)',
+                  borderRadius:13, border:'1px solid #dfe8ef', background:'#fff',
                   cursor:'pointer', textAlign:'left', transition:'all .15s',
-                  fontFamily:'Sarabun, sans-serif',
+                  fontFamily:"'Noto Sans Thai', Sarabun, sans-serif",
                 }}
-                  onMouseEnter={e => { e.currentTarget.style.border=`2px solid ${r.color}`; e.currentTarget.style.background='#f0f4ff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.border='2px solid #e5e7eb'; e.currentTarget.style.background='var(--surface-2)'; }}
+                  onMouseEnter={e => { e.currentTarget.style.border=`1px solid ${r.color}`; e.currentTarget.style.background=r.soft; e.currentTarget.style.transform='translateX(3px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.border='1px solid #dfe8ef'; e.currentTarget.style.background='#fff'; e.currentTarget.style.transform='none'; }}
                 >
-                  <span style={{ fontSize:26 }}>{r.icon}</span>
+                  <span style={{ fontSize:26, width:40, height:40, borderRadius:12, display:'grid', placeItems:'center', background:r.soft }}>{r.icon}</span>
                   <div>
                     <div style={{ fontWeight:700, fontSize:15, color:'var(--text)' }}>{r.title}</div>
                     <div style={{ fontSize:12, color:'var(--text-dim)', marginTop:2 }}>{r.sub}</div>
@@ -105,22 +113,28 @@ const Login = ({ onLogin, theme, toggleTheme }) => {
             <button type="submit" disabled={loading} style={{ marginTop:20, width:'100%', padding:'12px', borderRadius:8, border:'none', background: loading ? 'var(--text-dim)' : '#0d2c6b', color:'#fff', fontWeight:700, fontSize:15, cursor: loading ? 'not-allowed' : 'pointer', fontFamily:'Sarabun' }}>
               {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
             </button>
-            {mode === 'admin' && (
+            {mode === 'admin' && window.API.isDemo && (
               <div style={{ marginTop:14, padding:'10px 14px', background:'#f0f9ff', borderRadius:8, fontSize:12, color:'#0369a1' }}>
                 💡 <strong>Demo:</strong> username: <code>admin</code> / password: <code>admin123</code>
               </div>
             )}
             {mode === 'teacher' && (
               <div style={{ marginTop:14, padding:'10px 14px', background:'#f0fdf4', borderRadius:8, fontSize:12, color:'#166534' }}>
-                🔑 <strong>Login อาจารย์:</strong> ใช้ <strong>รหัสอาจารย์</strong> เป็นทั้ง username และ password<br/>
-                <span style={{ color:'var(--text-dim)', marginTop:3, display:'block' }}>รหัสอาจารย์จะถูกสร้างอัตโนมัติเมื่อ Admin Import รายวิชาเปิดสอน</span>
+                🔑 <strong>Login อาจารย์:</strong> ใช้บัญชีที่ได้รับจากผู้ดูแลระบบ
+                {window.API.isDemo && <span style={{ color:'var(--text-dim)', marginTop:3, display:'block' }}>Demo: teacher1 / teacher1</span>}
               </div>
             )}
           </form>
         )}
       </div>
 
-      <div style={{ color:'rgba(255,255,255,.4)', fontSize:12, marginTop:20 }}>งานวิชาศึกษาทั่วไป • ภาคการศึกษา 2/2568</div>
+      <button type="button" onClick={() => {
+        if (window.API.isDemo) window.API.useDefaultGasUrl(); else window.API.useDemo();
+        window.location.reload();
+      }} style={{ marginTop:16, background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.2)', color:'rgba(255,255,255,.75)', padding:'7px 14px', borderRadius:8, cursor:'pointer', fontFamily:'Sarabun', fontSize:12 }}>
+        {window.API.isDemo ? '↩ กลับไปใช้ระบบจริง' : 'ทดลองใช้งาน Demo Mode'}
+      </button>
+      <div style={{ color:'rgba(255,255,255,.4)', fontSize:12, marginTop:12 }}>งานวิชาศึกษาทั่วไป</div>
     </div>
   );
 };

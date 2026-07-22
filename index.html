@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ระบบติดตามการแก้ไขเกรด I — วิชาศึกษาทั่วไป</title>
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -25,6 +25,11 @@
     --shadow-sm: 0 1px 4px rgba(0,0,0,.07);
     --shadow-md: 0 4px 16px rgba(0,0,0,.10);
     --shadow-lg: 0 20px 60px rgba(0,0,0,.18);
+    --ge-blue: #0b3f7a;
+    --ge-cyan: #08a7d7;
+    --ge-lime: #bdd52a;
+    --ge-yellow: #ffd31a;
+    --ge-ink: #10253b;
   }
   [data-theme="dark"] {
     --bg: #0f1420;
@@ -44,8 +49,9 @@
     --shadow-lg: 0 20px 60px rgba(0,0,0,.6);
   }
 
-  body { font-family: 'Sarabun', sans-serif; background-color: var(--bg); color: var(--text); }
-  input, select, textarea, button { font-family: 'Sarabun', sans-serif; }
+  body { font-family: 'Noto Sans Thai', 'Sarabun', sans-serif; background-color: var(--bg); color: var(--text); }
+  input, select, textarea, button { font-family: 'Noto Sans Thai', 'Sarabun', sans-serif; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(8,167,215,.35); outline-offset: 2px; }
 
   /* ── Animations ── */
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -55,8 +61,19 @@
   @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 
   /* ── Card hover lift ── */
-  .gi-card { transition: box-shadow .2s ease, transform .2s ease; }
+  .gi-card { border: 1px solid var(--border); transition: box-shadow .2s ease, transform .2s ease; }
   .gi-card-hover:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+  .ge-brand-plaque { background:#fff; border-radius:12px; padding:7px 10px; box-shadow:0 8px 20px rgba(4,29,65,.16); }
+  .ge-brand-plaque img { display:block; width:100%; height:100%; object-fit:contain; }
+  .ge-login-stage { overflow:hidden; isolation:isolate; }
+  .ge-login-stage::before { content:''; position:absolute; width:720px; height:720px; border:72px solid rgba(189,213,42,.16); border-radius:50%; top:-420px; left:-230px; z-index:-1; }
+  .ge-login-stage::after { content:''; position:absolute; width:560px; height:560px; border:56px solid rgba(255,211,26,.14); border-radius:50%; bottom:-390px; right:-190px; z-index:-1; }
+  .ge-role-option { position:relative; overflow:hidden; }
+  .ge-role-option::after { content:''; position:absolute; width:5px; height:100%; right:0; top:0; background:var(--role-accent); transform:scaleY(0); transition:transform .18s ease; transform-origin:bottom; }
+  .ge-role-option:hover::after { transform:scaleY(1); }
+  .ge-sidebar-brand { position:relative; overflow:hidden; }
+  .ge-sidebar-brand::after { content:''; position:absolute; height:3px; background:linear-gradient(90deg,var(--ge-cyan),var(--ge-lime),var(--ge-yellow)); left:0; right:0; bottom:0; }
 
   /* ── Skeleton shimmer ── */
   .gi-skeleton {
@@ -214,6 +231,7 @@ const LocalDB = {
   _key: k => 'grade_i_' + k,
   _get: k => JSON.parse(localStorage.getItem(LocalDB._key(k)) || 'null'),
   _set: (k, v) => localStorage.setItem(LocalDB._key(k), JSON.stringify(v)),
+  _recordKey: s => [s.semester || '', String(s.studentId || ''), String(s.courseCode || '').replace(/\D/g,'').padStart(7,'0'), String(s.section || '').replace(/\D/g,'').padStart(3,'0')].join('|'),
 
   init() {
     // Reset if version mismatch
@@ -252,7 +270,8 @@ const LocalDB = {
 
   updateStatus(p) {
     const list = this._get('students') || [];
-    const idx = list.findIndex(s => String(s.studentId)===String(p.studentId) && s.courseCode===p.courseCode && s.section===p.section);
+    if (!p.semester) return { success:false, error:'ไม่พบภาคการศึกษาของรายการ' };
+    const idx = list.findIndex(s => this._recordKey(s) === this._recordKey(p));
     if (idx < 0) return { success:false, error:'ไม่พบข้อมูล' };
     const prev = list[idx];
     // ── Write audit log for status / grade changes ──
@@ -322,15 +341,23 @@ const LocalDB = {
   },
 
   importStudents(students, semester, clear) {
-    let list = clear ? [] : (this._get('students') || []);
+    let list = this._get('students') || [];
+    if (clear) list = list.filter(s => s.semester !== semester);
+    let created = 0, updated = 0, skipped = 0;
     students.forEach(s => {
-      const key = s.studentId + '_' + s.courseCode + '_' + s.section;
-      if (!list.find(x => x.studentId===s.studentId && x.courseCode===s.courseCode && x.section===s.section)) {
-        list.push({ ...s, semester: semester || s.semester, status: s.status || 'รอดำเนินการ' });
+      const incoming = { ...s, semester: semester || s.semester, courseCode:String(s.courseCode||'').replace(/\D/g,'').padStart(7,'0'), section:String(s.section||'').replace(/\D/g,'').padStart(3,'0') };
+      if (!incoming.studentId || !incoming.courseCode || !incoming.section || !incoming.bracketGrade) { skipped++; return; }
+      const idx = list.findIndex(x => this._recordKey(x) === this._recordKey(incoming));
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], studentName:incoming.studentName, courseName:incoming.courseName, teacher:incoming.teacher, bracketGrade:incoming.bracketGrade, cause:incoming.bracketGrade === 'E' ? 'ขาดสอบ' : 'ส่งงานไม่ครบ' };
+        updated++;
+      } else {
+        list.push({ ...incoming, status: incoming.status || 'รอดำเนินการ' });
+        created++;
       }
     });
     this._set('students', list);
-    return { success:true, imported:students.length };
+    return { success:true, imported:created+updated, created, updated, skipped };
   },
 
   importExamScores(scores, semester) {
@@ -343,19 +370,18 @@ const LocalDB = {
 
     // Also update student records (existing behavior) — only students in matching semester
     const list = this._get('students') || [];
+    let matched = 0, unmatched = 0;
     tagged.forEach(sc => {
-      const s = list.find(x =>
-        String(x.studentId) === String(sc.studentId) &&
-        (!sem || x.semester === sem)
-      );
+      const s = list.find(x => this._recordKey(x) === this._recordKey(sc));
       if (s) {
         if (!s.studentName) s.studentName = sc.studentName;
         s.examScore = sc.rawScore;
         s.examScoreOutOf30 = sc.score30;
-      }
+        matched++;
+      } else unmatched++;
     });
     this._set('students', list);
-    return { success:true, imported:scores.length };
+    return { success:true, imported:scores.length, matched, unmatched };
   },
 
   getExamScores(params) {
@@ -391,9 +417,8 @@ const LocalDB = {
   },
 
   getUsers() {
-    // Admin-only view — include password so it can be displayed/edited
     const users = this._get('users') || DEMO_USERS;
-    return { success:true, data:users };
+    return { success:true, data:users.map(({password, ...u}) => ({...u, hasPassword:!!password})) };
   },
 
   addUser(u) {
@@ -408,7 +433,9 @@ const LocalDB = {
     // username can be changed too (patch.username)
     if (patch.username && patch.username !== username && list.find(u => u.username === patch.username))
       return { success:false, error:'ชื่อผู้ใช้ใหม่ซ้ำกับที่มีอยู่' };
-    list[idx] = { ...list[idx], ...patch };
+    const cleanPatch = { ...patch };
+    if (!cleanPatch.password) delete cleanPatch.password;
+    list[idx] = { ...list[idx], ...cleanPatch };
     this._set('users', list); return { success:true };
   },
   deleteUser(username) { const list=(this._get('users')||DEMO_USERS).filter(u=>u.username!==username); this._set('users',list); return{success:true}; },
@@ -492,12 +519,19 @@ const LocalDB = {
 // API — routes to GAS or LocalDB
 // =====================================================================
 const GAS_URL_KEY = 'grade_i_gas_url';
+const DEMO_MODE_KEY = 'grade_i_demo_mode';
 // Default GAS URL baked into the app — every device connects automatically.
 // Admin can still override it per-device from ⚙️ ตั้งค่าระบบ if needed.
 const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzgZP9dm1Hw8qBruQThhaLuje9Erwrhdf9vwtUISNKGwRVW__MEMnURbn0wYt65s2W30g/exec';
 window.API = {
-  get gasUrl() { return localStorage.getItem(GAS_URL_KEY) || DEFAULT_GAS_URL; },
-  set gasUrl(v) { v ? localStorage.setItem(GAS_URL_KEY, v) : localStorage.removeItem(GAS_URL_KEY); },
+  token: '',
+  get gasUrl() { return localStorage.getItem(DEMO_MODE_KEY) === '1' ? '' : (localStorage.getItem(GAS_URL_KEY) || DEFAULT_GAS_URL); },
+  set gasUrl(v) {
+    localStorage.removeItem(DEMO_MODE_KEY);
+    v ? localStorage.setItem(GAS_URL_KEY, v) : localStorage.removeItem(GAS_URL_KEY);
+  },
+  useDemo() { this.token=''; localStorage.setItem(DEMO_MODE_KEY, '1'); },
+  useDefaultGasUrl() { localStorage.removeItem(DEMO_MODE_KEY); localStorage.removeItem(GAS_URL_KEY); },
   get isDemo() { return !this.gasUrl; },
 
   // Repair semester values that Google Sheets auto-converted to dates.
@@ -520,15 +554,32 @@ window.API = {
     return res;
   },
 
-  async _gas(params) {
-    const url = this.gasUrl + '?' + new URLSearchParams(params);
-    const r = await fetch(url); return r.json();
+  async _request(data) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const r = await fetch(this.gasUrl, { method:'POST', body:JSON.stringify(data), signal:controller.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const result = await r.json();
+      if (result && result.code === 'UNAUTHORIZED') {
+        this.token = '';
+        window.dispatchEvent(new CustomEvent('grade-i-session-expired'));
+      }
+      return result;
+    } finally { clearTimeout(timer); }
   },
-  async _gasPost(data) {
-    const r = await fetch(this.gasUrl, { method:'POST', body:JSON.stringify(data) }); return r.json();
+  async _gas(params, includeToken = true) {
+    return this._request({ ...params, ...(includeToken && this.token ? { token:this.token } : {}) });
   },
+  async _gasPost(data) { return this._gas(data, true); },
 
-  async login(u, p)       { return this.isDemo ? LocalDB.login(u,p)           : this._gas({action:'login',username:u,password:p}); },
+  async login(u, p)       {
+    const result = this.isDemo ? LocalDB.login(u,p) : await this._gas({action:'login',username:u,password:p}, false);
+    if (result && result.success && result.token) this.token = result.token;
+    return result;
+  },
+  async logout()          { const token=this.token; this.token=''; return this.isDemo ? {success:true} : this._gas({action:'logout',token}, false); },
+  async lookupStudent(id) { return this.isDemo ? LocalDB.getStudents({studentId:id}) : this._fixSemesters(await this._gas({action:'lookupStudent',studentId:id}, false)); },
   async getStudents(p)    { return this.isDemo ? LocalDB.getStudents(p)        : this._fixSemesters(await this._gas({action:'getStudents',...p})); },
   async getStats(sem)     { return this.isDemo ? LocalDB.getStats(sem)         : this._gas({action:'getStats',semester:sem}); },
   async getUsers()        { return this.isDemo ? LocalDB.getUsers()            : this._gas({action:'getUsers'}); },
@@ -568,7 +619,6 @@ const AdminSettings = ({ user }) => {
   const [users, setUsers] = React.useState([]);
   const [newUser, setNewUser] = React.useState({ username:'', password:'', role:'teacher', displayName:'', courseAccess:'' });
   const [addingUser, setAddingUser] = React.useState(false);
-  const [showPw, setShowPw] = React.useState(false);
   const [editUser, setEditUser] = React.useState(null);
   const [editForm, setEditForm] = React.useState({ username:'', password:'', role:'teacher', displayName:'', courseAccess:'' });
   const [savingEdit, setSavingEdit] = React.useState(false);
@@ -591,10 +641,11 @@ const AdminSettings = ({ user }) => {
   };
 
   const saveGas = () => {
-    window.API.gasUrl = gasUrl.trim();
+    if (gasUrl.trim()) window.API.gasUrl = gasUrl.trim();
+    else window.API.useDemo();
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-    toast('บันทึกการตั้งค่าแล้ว', 'success');
+    toast(gasUrl.trim() ? 'บันทึกการเชื่อมต่อแล้ว' : 'เปิดโหมด Demo แล้ว', 'success');
   };
 
   const handleAddUser = async () => {
@@ -618,13 +669,13 @@ const AdminSettings = ({ user }) => {
   const openEdit = (u) => {
     setEditUser(u);
     setEditForm({
-      username: u.username, password: u.password || '', role: u.role,
+      username: u.username, password: '', role: u.role,
       displayName: u.displayName, courseAccess: Array.isArray(u.courseAccess) ? u.courseAccess.join(',') : (u.courseAccess || ''),
     });
   };
 
   const handleSaveEdit = async () => {
-    if (!editForm.username || !editForm.password || !editForm.displayName) { toast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+    if (!editForm.username || !editForm.displayName) { toast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
     setSavingEdit(true);
     const res = await window.API.updateUser(editUser.username, { ...editForm });
     if (res.success) {
@@ -685,8 +736,8 @@ const AdminSettings = ({ user }) => {
           <input value={gasUrl} onChange={e=>setGasUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" style={{ flex:1, padding:'10px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:13, fontFamily:'Sarabun', outline:'none' }} />
           <button onClick={saveGas} style={{ padding:'10px 20px', borderRadius:8, border:'none', background: saved?'#16a34a':'#0d2c6b', color:'#fff', cursor:'pointer', fontFamily:'Sarabun', fontWeight:600, whiteSpace:'nowrap' }}>{saved?'✓ บันทึกแล้ว':'บันทึก'}</button>
         </div>
-        <div style={{ marginTop:10, fontSize:12, color:'var(--text-dim)' }}>วิธีรับ URL: เปิด Google Apps Script → Deploy → New Deployment → Web App → Copy URL</div>
-        {gasUrl !== DEFAULT_GAS_URL && <button onClick={()=>{window.API.gasUrl='';setGasUrl(window.API.gasUrl);toast('กลับไปใช้ URL เริ่มต้นของระบบแล้ว','info');}} style={{ marginTop:8, background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:12, fontFamily:'Sarabun' }}>✕ ล้าง URL ที่กำหนดเอง (กลับไปใช้ค่าเริ่มต้น)</button>}
+        <div style={{ marginTop:10, fontSize:12, color:'var(--text-dim)' }}>เว้นว่างแล้วกดบันทึกเพื่อใช้ Demo Mode หรือวาง URL จาก Apps Script Deployment</div>
+        {(gasUrl !== DEFAULT_GAS_URL || window.API.isDemo) && <button onClick={()=>{window.API.useDefaultGasUrl();setGasUrl(window.API.gasUrl);toast('กลับไปใช้ URL เริ่มต้นของระบบแล้ว','info');}} style={{ marginTop:8, background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:12, fontFamily:'Sarabun' }}>↩ กลับไปใช้ URL เริ่มต้นของระบบ</button>}
       </Card>
 
       {/* Teacher menu visibility */}
@@ -738,9 +789,6 @@ const AdminSettings = ({ user }) => {
       <Card style={{ overflow:'hidden' }}>
         <div style={{ padding:'14px 20px', borderBottom:'1px solid var(--border-soft)', fontWeight:700, color:'var(--text)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <span>👤 จัดการผู้ใช้งาน</span>
-          <button onClick={()=>setShowPw(p=>!p)} style={{ background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', padding:'4px 12px', borderRadius:7, cursor:'pointer', fontSize:12, fontFamily:'Sarabun' }}>
-            {showPw ? '🙈 ซ่อนรหัสผ่าน' : '👁️ แสดงรหัสผ่าน'}
-          </button>
         </div>
         <div style={{ overflowX:'auto' }}>
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:14 }}>
@@ -752,9 +800,7 @@ const AdminSettings = ({ user }) => {
               <tr key={i} style={{borderBottom:'1px solid var(--border-soft)'}}>
                 <td style={{padding:'9px 14px',fontFamily:'monospace',fontSize:13}}>{u.username}</td>
                 <td style={{padding:'9px 14px',fontFamily:'monospace',fontSize:13}}>
-                  {showPw
-                    ? <span style={{color:'var(--text)'}}>{u.password}</span>
-                    : <span style={{color:'var(--text-dim)',letterSpacing:2}}>{'•'.repeat(Math.min((u.password||'').length,10)||6)}</span>}
+                  <span style={{color:'var(--text-dim)'}}>{u.hasPassword ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้ง'}</span>
                 </td>
                 <td style={{padding:'9px 14px',fontWeight:500}}>{u.displayName}</td>
                 <td style={{padding:'9px 14px'}}><span style={{background:u.role==='admin'?'#eff6ff':'#f0fdf4',color:u.role==='admin'?'#1d4ed8':'#16a34a',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:600}}>{u.role==='admin'?'Admin':'อาจารย์'}</span></td>
@@ -771,7 +817,7 @@ const AdminSettings = ({ user }) => {
           <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:10 }}>+ เพิ่มผู้ใช้ใหม่</div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:10, marginBottom:10 }}>
             <input value={newUser.username} onChange={e=>setNewUser(p=>({...p,username:e.target.value}))} placeholder="Username" style={{padding:'8px 10px',borderRadius:7,border:'1px solid var(--border)',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
-            <input value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} placeholder="Password" style={{padding:'8px 10px',borderRadius:7,border:'1px solid var(--border)',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
+            <input type="password" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} placeholder="Password" autoComplete="new-password" style={{padding:'8px 10px',borderRadius:7,border:'1px solid var(--border)',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
             <input value={newUser.displayName} onChange={e=>setNewUser(p=>({...p,displayName:e.target.value}))} placeholder="ชื่อที่แสดง" style={{padding:'8px 10px',borderRadius:7,border:'1px solid var(--border)',fontSize:13,fontFamily:'Sarabun',outline:'none'}} />
             <select value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))} style={{padding:'8px 10px',borderRadius:7,border:'1px solid var(--border)',fontSize:13,fontFamily:'Sarabun',background:'var(--surface)',outline:'none'}}>
               <option value="admin">Admin</option><option value="teacher">อาจารย์</option>
@@ -795,8 +841,8 @@ const AdminSettings = ({ user }) => {
                 {editUser.username==='admin' && <div style={{ fontSize:11, color:'var(--text-dim)', marginTop:4 }}>ไม่สามารถเปลี่ยนชื่อ Admin หลักได้</div>}
               </div>
               <div>
-                <label style={{ fontSize:13, fontWeight:600, color:'var(--text)', display:'block', marginBottom:6 }}>รหัสผ่าน (Password)</label>
-                <input value={editForm.password} onChange={e=>setEditForm(p=>({...p,password:e.target.value}))} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+                <label style={{ fontSize:13, fontWeight:600, color:'var(--text)', display:'block', marginBottom:6 }}>ตั้งรหัสผ่านใหม่ <span style={{fontWeight:400,color:'var(--text-dim)'}}>(เว้นว่างเพื่อใช้รหัสเดิม)</span></label>
+                <input type="password" value={editForm.password} autoComplete="new-password" onChange={e=>setEditForm(p=>({...p,password:e.target.value}))} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
               </div>
               <div>
                 <label style={{ fontSize:13, fontWeight:600, color:'var(--text)', display:'block', marginBottom:6 }}>ชื่อที่แสดง</label>
@@ -842,7 +888,12 @@ const App = () => {
   const { theme, toggle: toggleTheme } = useTheme();
 
   const handleLogin = (result) => setAuth(result);
-  const handleLogout = () => { setAuth(null); setActiveTab('dashboard'); };
+  const handleLogout = () => { window.API.logout().catch(()=>{}); setAuth(null); setActiveTab('dashboard'); };
+  React.useEffect(() => {
+    const expired = () => { setAuth(null); setActiveTab('dashboard'); };
+    window.addEventListener('grade-i-session-expired', expired);
+    return () => window.removeEventListener('grade-i-session-expired', expired);
+  }, []);
 
   if (!auth) return <ToastProvider><Login onLogin={handleLogin} theme={theme} toggleTheme={toggleTheme} /></ToastProvider>;
 
@@ -857,6 +908,8 @@ const App = () => {
       <TeacherView user={auth} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />
     </ToastProvider>
   );
+
+  if (auth.role !== 'admin') return <ToastProvider><Login onLogin={handleLogin} theme={theme} toggleTheme={toggleTheme} /></ToastProvider>;
 
   // Admin
   const DEMO_BANNER = window.API.isDemo;

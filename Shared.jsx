@@ -25,6 +25,19 @@ const GRADE_COLORS = {
   'D': '#d97706','E': '#dc2626'
 };
 
+const escapeHtml = (value) => String(value == null ? '' : value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const compareSemestersDesc = (a, b) => {
+  const [termA, yearA] = String(a || '').split('/').map(Number);
+  const [termB, yearB] = String(b || '').split('/').map(Number);
+  return yearB !== yearA ? yearB - yearA : termB - termA;
+};
+
 // ── Theme (dark mode) ──────────────────────────────────────────
 const useTheme = () => {
   const [theme, setTheme] = React.useState(() => localStorage.getItem('grade_i_theme') || 'light');
@@ -178,7 +191,7 @@ const ProgressRing = ({ percent = 0, size = 120, thickness = 12, color = '#16a34
 const Modal = ({ open, onClose, title, children, width = 540 }) => {
   if (!open) return null;
   return (
-    <div style={{
+    <div role="dialog" aria-modal="true" aria-label={title} style={{
       position:'fixed', inset:0, zIndex:1000,
       display:'flex', alignItems:'center', justifyContent:'center',
       background:'rgba(0,0,0,.5)', padding:16, animation:'fadeIn .15s ease'
@@ -186,7 +199,7 @@ const Modal = ({ open, onClose, title, children, width = 540 }) => {
       <Card style={{ width:'100%', maxWidth:width, maxHeight:'90vh', overflow:'hidden', display:'flex', flexDirection:'column', boxShadow:'var(--shadow-lg)', animation:'modalPop .2s ease' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid var(--border)' }}>
           <span style={{ fontWeight:700, fontSize:16, color:'var(--text)' }}>{title}</span>
-          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'var(--text-dim)', lineHeight:1 }}>×</button>
+          <button onClick={onClose} aria-label="ปิดหน้าต่าง" style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'var(--text-dim)', lineHeight:1 }}>×</button>
         </div>
         <div style={{ padding:'20px 24px', overflowY:'auto', flex:1 }}>{children}</div>
       </Card>
@@ -303,4 +316,6 @@ Object.assign(window, {
   ToastProvider, ToastContext, useToast,
   useTheme, ThemeToggle, DonutChart, ProgressRing,
   Skeleton, SkeletonTable, SkeletonCards,
+  escapeHtml,
+  compareSemestersDesc,
 });
