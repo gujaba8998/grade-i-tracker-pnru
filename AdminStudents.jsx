@@ -62,10 +62,11 @@ const AdminStudents = ({ user }) => {
     if (filterCause)    list = list.filter(s => s.cause === filterCause);
     if (filterCourse)   list = list.filter(s => (s.courseCode+'_'+s.section) === filterCourse);
     if (search) {
-      const q = search.toLowerCase();
+      const q = String(search).trim().toLocaleLowerCase('th-TH');
+      const matches = (value) => String(value == null ? '' : value).toLocaleLowerCase('th-TH').includes(q);
       list = list.filter(s =>
-        s.studentId?.includes(q) || s.studentName?.toLowerCase().includes(q) ||
-        s.courseCode?.includes(q) || s.courseName?.toLowerCase().includes(q)
+        matches(s.studentId) || matches(s.studentName) ||
+        matches(s.courseCode) || matches(s.courseName)
       );
     }
     list.sort((a, b) => {
