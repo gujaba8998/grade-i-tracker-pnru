@@ -613,6 +613,7 @@ LocalDB.init();
 
 <script type="text/babel">
 // ── AdminSettings ─────────────────────────────────────────────
+const displayUsername = u => u.role === 'teacher' && /^\d{1,7}$/.test(String(u.username)) ? String(u.username).padStart(7, '0') : String(u.username);
 const AdminSettings = ({ user }) => {
   const [gasUrl, setGasUrl] = React.useState(window.API.gasUrl);
   const [saved, setSaved] = React.useState(false);
@@ -669,7 +670,7 @@ const AdminSettings = ({ user }) => {
   const openEdit = (u) => {
     setEditUser(u);
     setEditForm({
-      username: u.username, password: '', role: u.role,
+      username: displayUsername(u), password: '', role: u.role,
       displayName: u.displayName, courseAccess: Array.isArray(u.courseAccess) ? u.courseAccess.join(',') : (u.courseAccess || ''),
     });
   };
@@ -798,7 +799,7 @@ const AdminSettings = ({ user }) => {
           <tbody>
             {users.map((u,i)=>(
               <tr key={i} style={{borderBottom:'1px solid var(--border-soft)'}}>
-                <td style={{padding:'9px 14px',fontFamily:'monospace',fontSize:13}}>{u.username}</td>
+                <td style={{padding:'9px 14px',fontFamily:'monospace',fontSize:13}}>{displayUsername(u)}</td>
                 <td style={{padding:'9px 14px',fontFamily:'monospace',fontSize:13}}>
                   <span style={{color:'var(--text-dim)'}}>{u.hasPassword ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้ง'}</span>
                 </td>
