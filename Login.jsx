@@ -13,7 +13,7 @@ const Login = ({ onLogin, theme, toggleTheme }) => {
     setLoading(true); setError('');
     try {
       const result = await window.API.login(username, password);
-      if (result.success) onLogin({ ...result, username });
+      if (result.success) onLogin({ ...result, username: result.username || username.trim() });
       else setError(result.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
     } catch { setError('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
     setLoading(false);
