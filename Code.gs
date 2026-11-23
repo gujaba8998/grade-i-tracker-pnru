@@ -454,70 +454,76 @@ function ensureScoreColumns(sheet) {
 }
 
 function importExamScores(scores, semester) {
-  const esSheet = getSheet('examScores');
-  const targetSemester = normSemGAS(semester);
-  if (!targetSemester) return { success: false, error: 'กรุณาระบุภาคการศึกษา' };
-  if (!Array.isArray(scores) || !scores.length || scores.some(s =>
-    !s || !s.studentId || !normCourseGAS(s.courseCode) || !normSectionGAS(s.section) ||
-    typeof s.score30 !== 'number' || !Number.isFinite(s.score30) || s.score30 < 0 ||
-    typeof s.scoreMax !== 'number' || !Number.isFinite(s.scoreMax) || s.score30 > s.scoreMax
-  )) return {success:false, error:'ข้อมูลคะแนนหรือคะแนนเต็มไม่ครบ กรุณาตรวจไฟล์ก่อนนำเข้า'};
-  const headers = ensureScoreColumns(esSheet);
-  const stuSheetForScale = getSheet('students');
-  ensureScoreColumns(stuSheetForScale);
-  // Remove existing rows for this semester
-  if (esSheet.getLastRow() > 1) {
-    const esData = esSheet.getDataRange().getValues();
-    const semCol = esData[0].indexOf('semester');
-    for (let i = esData.length - 1; i >= 1; i--) {
-      if (normSemGAS(esData[i][semCol]) === targetSemester) esSheet.deleteRow(i + 1);
+  const fail = error => ({ success:false, error });
+  if (!/^[1-3]\/\d{4}$/.test(String(semester)) || !Array.isArray(scores) || !scores.length)
+    return fail('กรุณาเลือกภาคการศึกษาและไฟล์คะแนน');
+  const incoming = new Map();
+  for (const s of scores) {
+    if (!s || !/^\d{10,15}$/.test(String(s.studentId)) || !/^\d{1,7}$/.test(String(s.courseCode)) ||
+        !/^\d{1,3}$/.test(String(s.section)) || !Number.isFinite(s.scoreMax) ||
+        !Number.isFinite(s.score30) || s.score30 < 0 || s.score30 > s.scoreMax)
+      return fail('ข้อมูลรหัสหรือคะแนนไม่ถูกต้อง ไม่มีการนำเข้า');
+    const k = recordKeyGAS(s.studentId,s.courseCode,s.section,semester);
+    if (incoming.has(k)) return fail('พบรายการซ้ำในไฟล์ ไม่มีการนำเข้า');
+    incoming.set(k,s);
+  }
+  const exams = getSheet('examScores'), students = getSheet('students');
+  function index(sheet, required) {
+    const data = sheet.getDataRange().getValues(), h = data[0], positions = new Map();
+    if (required.some(f=>!h.includes(f)) || new Set(h.filter(Boolean)).size !== h.filter(Boolean).length)
+      return {error:'หัวคอลัมน์ในชีตไม่ครบหรือซ้ำ ไม่มีการนำเข้า'};
+    for (let i=1;i<data.length;i++) {
+      const read = f => data[i][h.indexOf(f)];
+      const k = recordKeyGAS(read('studentId'),read('courseCode'),read('section'),read('semester'));
+      if (!incoming.has(k)) continue;
+      if (positions.has(k)) return {error:'พบหลายแถวในชีตสำหรับนักศึกษา วิชา หมู่ และภาคเดียวกัน ไม่มีการนำเข้า'};
+      positions.set(k,i+1);
     }
+    return {positions};
   }
-  const now = new Date().toISOString();
-  const validScores = (scores || []).filter(function(s) {
-    return s.studentId && normCourseGAS(s.courseCode) && normSectionGAS(s.section);
-  });
-  const rows = validScores.map(s => {
-    const record = {studentId:String(s.studentId).trim(), studentName:s.studentName || '',
-      courseCode:normCourseGAS(s.courseCode), courseName:s.courseName || '', section:normSectionGAS(s.section),
-      rawScore:s.rawScore || '', score30:s.score30, semester:targetSemester, importedAt:now,
-      scoreMax:s.scoreMax, scoreNote:s.scoreNote === 'ขาดสอบ' ? 'ขาดสอบ' : ''};
-    return headers.map(h => record[h] ?? '');
-  });
-  if (rows.length > 0) {
-    const startRow = esSheet.getLastRow() + 1;
-    const semColIdx = headers.indexOf('semester');
-    for (const field of ['courseCode','section','studentId','rawScore']) esSheet.getRange(startRow, headers.indexOf(field)+1, rows.length, 1).setNumberFormat('@');
-    if (semColIdx > -1) esSheet.getRange(startRow, semColIdx + 1, rows.length, 1).setNumberFormat('@');
-    esSheet.getRange(startRow, 1, rows.length, rows[0].length).setValues(rows);
+  const e = index(exams,SHEET_HEADERS.examScores.filter(f=>!['scoreMax','scoreNote'].includes(f)));
+  const st = index(students,['studentId','courseCode','section','semester','examScore','examScoreOutOf30']);
+  if (e.error || st.error) return fail(e.error || st.error);
+  const eh = ensureScoreColumns(exams), sh = ensureScoreColumns(students);
+  const now = new Date().toISOString(), additions = [], examUpdates=[], studentUpdates=[];
+  for (const [k,s] of incoming) {
+    const fields = {rawScore:String(s.rawScore || ''),score30:s.score30,scoreMax:s.scoreMax,
+      scoreNote:String(s.scoreNote || ''),importedAt:now};
+    if (e.positions.has(k)) examUpdates.push([e.positions.get(k),fields]);
+    else {
+      const record = {...fields, studentId:String(s.studentId), studentName:String(s.studentName||''),
+        courseCode:normCourseGAS(s.courseCode), courseName:String(s.courseName||''),
+        section:normSectionGAS(s.section), semester};
+      additions.push(eh.map(f=>record[f] ?? ''));
+    }
+    if (st.positions.has(k)) studentUpdates.push([st.positions.get(k),{examScore:fields.rawScore,
+      examScoreOutOf30:s.score30, scoreMax:s.scoreMax, scoreNote:fields.scoreNote}]);
   }
-
-  // Also update students sheet (match by studentId + semester)
-  const stuSheet = getSheet('students');
-  const stuData  = stuSheet.getDataRange().getValues();
-  const sh = stuData[0];
-  const sc = name => sh.indexOf(name);
-  let matched = 0, unmatched = 0;
-  validScores.forEach(score => {
-    let found = false;
-    for (let i = 1; i < stuData.length; i++) {
-      if (String(stuData[i][sc('studentId')]) === String(score.studentId) &&
-          normSemGAS(stuData[i][sc('semester')]) === targetSemester &&
-          normCourseGAS(stuData[i][sc('courseCode')]) === normCourseGAS(score.courseCode) &&
-          normSectionGAS(stuData[i][sc('section')]) === normSectionGAS(score.section)) {
-        if (!stuData[i][sc('studentName')]) stuSheet.getRange(i+1, sc('studentName')+1).setValue(score.studentName || '');
-        stuSheet.getRange(i+1, sc('examScore')+1).setValue(score.rawScore || '');
-        stuSheet.getRange(i+1, sc('examScoreOutOf30')+1).setValue(score.score30);
-        stuSheet.getRange(i+1, sc('scoreMax')+1).setValue(score.scoreMax);
-        stuSheet.getRange(i+1, sc('scoreNote')+1).setValue(score.scoreNote === 'ขาดสอบ' ? 'ขาดสอบ' : '');
-        found = true;
-        matched++;
-        break;
+  // Batch adjacent matching rows per field. Never rewrite unrelated rows or custom columns.
+  function writeFields(sheet,h,updates) {
+    updates.sort((a,b)=>a[0]-b[0]);
+    for(let i=0;i<updates.length;) {
+      let end=i+1;
+      while(end<updates.length && updates[end][0]===updates[end-1][0]+1) end++;
+      const batch=updates.slice(i,end);
+      for(const f of Object.keys(batch[0][1])) {
+        const range=sheet.getRange(batch[0][0],h.indexOf(f)+1,batch.length,1);
+        if (['rawScore','examScore','scoreNote'].includes(f)) range.setNumberFormat('@');
+        range.setValues(batch.map(row=>[row[1][f]]));
       }
+      i=end;
     }
-    if (!found) unmatched++;
-  });
-  return { success: true, imported: validScores.length, matched: matched, unmatched: unmatched, skipped: (scores || []).length - validScores.length };
+  }
+  if(additions.length) {
+    const start=exams.getLastRow()+1;
+    for(const f of ['studentId','studentName','courseCode','courseName','section','semester','rawScore','scoreNote'])
+      exams.getRange(start,eh.indexOf(f)+1,additions.length,1).setNumberFormat('@');
+    exams.getRange(start,1,additions.length,eh.length).setValues(additions);
+  }
+  writeFields(exams,eh,examUpdates);
+  writeFields(students,sh,studentUpdates);
+  return {success:true,imported:incoming.size,matched:studentUpdates.length,unmatched:incoming.size-studentUpdates.length,
+    created:additions.length,updated:examUpdates.length,skipped:0};
 }
 
 function getExamScores(params, session) {
@@ -768,7 +774,8 @@ function doPost(e) {
       case 'clearLogs':             adminSession(); return jsonOut(withWriteLock(clearLogs));
       case 'updateSettings':        adminSession(); return jsonOut(withWriteLock(function(){ return updateSettings(p.patch); }));
       case 'importStudents':        adminSession(); return jsonOut(withWriteLock(function(){ return importStudents(p.students, p.semester, p.clearExisting); }));
-      case 'importExamScores':      adminSession(); return jsonOut(withWriteLock(function(){ return importExamScores(p.scores, p.semester); }));
+      case 'importExamScores':      adminSession(); return jsonOut({success:false,error:'กรุณารีเฟรชหน้าเว็บก่อนนำเข้าคะแนน'});
+      case 'upsertExamScoresV2':    adminSession(); return jsonOut(withWriteLock(function(){ return importExamScores(p.scores, p.semester); }));
       case 'addUser':               adminSession(); return jsonOut(withWriteLock(function(){ return addUser(p.user); }));
       case 'updateUser':            adminSession(); return jsonOut(withWriteLock(function(){ return updateUser(p.username, p.patch); }));
       case 'deleteUser':            adminSession(); return jsonOut(withWriteLock(function(){ return deleteUser(p.username); }));

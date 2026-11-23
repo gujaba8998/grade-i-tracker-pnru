@@ -5,7 +5,7 @@ const AdminImport = ({ user }) => {
   const [preview, setPreview] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
-  const [semester, setSemester] = React.useState('3/2568');
+  const [semester, setSemester] = React.useState('');
   const [clearExisting, setClearExisting] = React.useState(false);
   const [courseTeachers, setCourseTeachers] = React.useState({});
   const [courseNames, setCourseNames] = React.useState({}); // courseKey -> courseName
@@ -224,8 +224,12 @@ const AdminImport = ({ user }) => {
           toast(`💡 ยังไม่มีข้อมูลรายวิชาเปิดสอนสำหรับภาค ${semester} — แนะนำให้ Import ก่อน`, 'warning');
         }
       } else if (tab === 'scores') {
+        if (!/^[1-3]\/\d{4}$/.test(semester)) throw Error('กรอกภาคการศึกษาก่อนเลือกไฟล์');
+        const fileSem = file.name.match(/(?:^|[^0-9])([1-3])[-_](25\d{2})(?!\d)/);
+        if (fileSem && semester !== fileSem[1]+'/'+fileSem[2]) throw Error('ภาคที่เลือกไม่ตรงกับชื่อไฟล์');
         const scores = await parseScoresFile(file);
-        setPreview({ scores });
+        if (!scores.length) throw Error('ไม่พบรายการคะแนน');
+        setPreview({ scores, semester });
       }
       setStep(2);
     } catch (err) {
@@ -270,7 +274,8 @@ const AdminImport = ({ user }) => {
         // Save mapping for future use
         await window.API.saveSectionTeachers(courseTeachers);
       } else {
-        res = await window.API.importExamScores(preview.scores, semester);
+        if (preview.semester !== semester) throw Error('ภาคการศึกษาเปลี่ยน กรุณาเลือกไฟล์ใหม่');
+        res = await window.API.importExamScores(preview.scores, preview.semester);
       }
       if (res.success) {
         setImportResult(res);
