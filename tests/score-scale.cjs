@@ -42,13 +42,29 @@ const sheet = data => ({
     assert.deepEqual(Array.from(ctx.getExamScores({semester:'1/2569'}).data,format),['13.33/20','0/30','ขาดสอบ']);
   }
   const before=JSON.stringify(tables.examScores.data);
+  assert.equal(ctx.importExamScores([records[0], records[0]],'1/2569').success,false);
+  assert.equal(JSON.stringify(tables.examScores.data),before);
   assert.equal(ctx.importExamScores([{...records[0],scoreMax:undefined}],'1/2569').success,false);
   assert.equal(JSON.stringify(tables.examScores.data),before);
+  const untouched=JSON.stringify(tables.examScores.data.slice(3));
+  const correction=ctx.importExamScores([{...records[0],score30:12}],'1/2569');
+  assert.equal(correction.updated,1);assert.equal(correction.created,0);
+  assert.equal(JSON.stringify(tables.examScores.data.slice(3)),untouched);
+  assert.equal(tables.students.data[1][6],12);
+  tables.students.data.push(tables.students.data[1].slice());
+  const snapshot=JSON.stringify(tables.examScores.data);
+  assert.equal(ctx.importExamScores(records,'1/2569').success,false);
+  assert.equal(JSON.stringify(tables.examScores.data),snapshot);
   if(process.argv.includes('--rows')){
     const rows=JSON.parse(fs.readFileSync(0,'utf8').replace(/^\uFEFF/,''));
     const expected=rows.filter(r=>typeof r[0]==='number');
     const actual=await parse(rows);
     assert.equal(actual.length,expected.length);
+    const freshTables={examScores:sheet([tables.examScores.data[0].slice()]),students:sheet([tables.students.data[0].slice()])};
+    ctx.getSheet=n=>freshTables[n];
+    assert.equal(ctx.importExamScores(actual,'1/2569').created,actual.length);
+    assert.equal(ctx.importExamScores(actual,'1/2569').updated,actual.length);
+    assert.equal(freshTables.examScores.data.length,actual.length+1);
     let i=0,max;
     for(const r of rows){
       if(r[0]==='ลำดับ') max=Number(r[4].match(/\d+/)[0]);

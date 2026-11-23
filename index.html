@@ -365,7 +365,9 @@ const LocalDB = {
     const sem = semester || '';
     const tagged = scores.map(s => ({ ...s, semester: sem }));
     // Merge with existing scores: remove old entries for this semester first
-    const existing = (this._get('examScores') || []).filter(s => (s.semester || '') !== sem);
+    const keys = new Set(tagged.map(s => this._recordKey(s)));
+    if (keys.size !== tagged.length) return { success:false, error:'พบรายการคะแนนซ้ำ' };
+    const existing = (this._get('examScores') || []).filter(s => !keys.has(this._recordKey(s)));
     this._set('examScores', [...existing, ...tagged]);
 
     // Also update student records (existing behavior) — only students in matching semester
@@ -587,7 +589,7 @@ window.API = {
   async getUsers()        { return this.isDemo ? LocalDB.getUsers()            : this._gas({action:'getUsers'}); },
   async updateStatus(p)   { return this.isDemo ? LocalDB.updateStatus(p)       : this._gasPost({action:'updateStatus',...p}); },
   async importStudents(s,sem,clr) { return this.isDemo ? LocalDB.importStudents(s,sem,clr) : this._gasPost({action:'importStudents',students:s,semester:sem,clearExisting:clr}); },
-  async importExamScores(scores, semester) { return this.isDemo ? LocalDB.importExamScores(scores, semester) : this._gasPost({action:'importExamScores',scores,semester}); },
+  async importExamScores(scores, semester) { return this.isDemo ? LocalDB.importExamScores(scores, semester) : this._gasPost({action:'upsertExamScoresV2',scores,semester}); },
   async getExamScores(params)    { return this.isDemo ? LocalDB.getExamScores(params||{}) : this._fixSemesters(await this._gas({action:'getExamScores',...(params||{})})); },
   async addUser(u)        { return this.isDemo ? LocalDB.addUser(u)            : this._gasPost({action:'addUser',user:u}); },
   async updateUser(name,patch) { return this.isDemo ? LocalDB.updateUser(name,patch) : this._gasPost({action:'updateUser',username:name,patch}); },
