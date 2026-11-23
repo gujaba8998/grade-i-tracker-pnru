@@ -132,7 +132,7 @@ const AdminImport = ({ user }) => {
       const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       let currentCode = '', currentName = '', currentSection = '';
-      let score30Col = -1;
+      let score30Col = -1, scoreMax, noteCol;
 
       for (const row of rows) {
         const col0 = String(row[0] || '');
@@ -146,9 +146,12 @@ const AdminImport = ({ user }) => {
         }
         const m2 = col0.match(/^(\d{7})\s+(.+?)\s+sec\s+(\d+)/i);
         if (m2) { currentCode = m2[1]; currentName = m2[2].trim(); currentSection = String(Number(m2[3])).padStart(3,'0'); score30Col = -1; continue; }
-        const hasScore30Hdr = row.some(c => String(c).includes('คะแนน(30)'));
-        if (col0 === 'ลำดับ' || hasScore30Hdr) {
-          score30Col = row.findIndex(c => String(c).includes('คะแนน(30)'));
+        const header = /^\s*คะแนน\s*\(\s*(\d+)\s*\)\s*$/;
+        const scoreColumn = row.findIndex(c => header.test(String(c)));
+        if (col0 === 'ลำดับ' || scoreColumn >= 0) {
+          score30Col = scoreColumn;
+          scoreMax = scoreColumn < 0 ? null : Number(header.exec(row[scoreColumn])[1]);
+          noteCol = row.findIndex(c => String(c).trim() === 'หมายเหตุ');
           continue;
         }
         const col1 = row[1];
@@ -161,11 +164,13 @@ const AdminImport = ({ user }) => {
               rawScore = String(row[ci]).trim().replace(/\s+/g, ''); break;
             }
           }
-          if (score30Col > -1 && row[score30Col] !== '') {
+          if (score30Col < 0 || !String(row[score30Col] ?? '').trim()) throw Error('ไม่พบคะแนนหรือคะแนนเต็ม: ' + currentCode + ' หมู่ ' + currentSection);
+          {
             const parsed = Number(row[score30Col]);
-            if (Number.isFinite(parsed)) score30 = parsed;
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > scoreMax) throw Error('คะแนนไม่อยู่ในช่วงที่กำหนด: ' + currentCode);
+            score30 = parsed;
           }
-          allScores.push({ studentId, studentName, courseCode: currentCode, courseName: currentName, section: currentSection, rawScore, score30 });
+          allScores.push({ studentId, studentName, courseCode: currentCode, courseName: currentName, section: currentSection, rawScore, score30, scoreMax, scoreNote: String(row[noteCol] || '').trim() });
         }
       }
     }
@@ -358,7 +363,7 @@ const AdminImport = ({ user }) => {
             <div style={{ fontSize:12, color:'var(--text-muted)', lineHeight:1.8 }}>
               {tab === 'offerings' && 'แต่ละบล็อก: บรรทัดบนสุดเป็น "[รหัสอาจารย์] อาจารย์[ชื่อ]" ตามด้วยตาราง # | รหัสวิชา | ชื่อวิชา | SEC | ประเภท'}
               {tab === 'students'  && 'คอลัมน์: ลำดับ | รหัสนักศึกษา | รหัสวิชา | หมู่เรียน | เกรด(I) | เกรดวงเล็บ | ชื่อ-สกุล'}
-              {tab === 'scores'    && 'รูปแบบรายงานจาก IT: หัวกลุ่ม "รหัสวิชา ชื่อวิชา sec XXX" ตามด้วยตาราง: ลำดับ | รหัส | ชื่อ-สกุล | คะแนน/เต็ม | ... | คะแนน(30)'}
+              {tab === 'scores'    && 'รูปแบบรายงานจาก IT: หัวกลุ่ม "รหัสวิชา ชื่อวิชา sec XXX" ตามด้วยตาราง: ลำดับ | รหัส | ชื่อ-สกุล | คะแนน/เต็ม | ... | คะแนน(เต็มตามรายวิชา)'}
             </div>
           </div>
         </Card>
@@ -478,7 +483,7 @@ const AdminImport = ({ user }) => {
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                   <thead><tr style={{background:'var(--surface-2)'}}>
-                    {['รหัสนักศึกษา','ชื่อ-สกุล','รหัสวิชา','หมู่','คะแนน/60','คะแนน/30'].map(h=>(
+                    {['รหัสนักศึกษา','ชื่อ-สกุล','รหัสวิชา','หมู่','คะแนนดิบ','คะแนนที่ได้/เต็ม'].map(h=>(
                       <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontSize:11, fontWeight:600, color:'var(--text-muted)', borderBottom:'1px solid var(--border)' }}>{h}</th>
                     ))}
                   </tr></thead>
@@ -490,7 +495,7 @@ const AdminImport = ({ user }) => {
                         <td style={{padding:'8px 14px',fontFamily:'monospace',fontSize:12}}>{s.courseCode}</td>
                         <td style={{padding:'8px 14px'}}>{s.section}</td>
                         <td style={{padding:'8px 14px',color:'#0284c7',fontWeight:600}}>{s.rawScore||'—'}</td>
-                        <td style={{padding:'8px 14px',color:'#16a34a',fontWeight:600}}>{s.score30||'—'}</td>
+                        <td style={{padding:'8px 14px',color:'#16a34a',fontWeight:600}}>{window.formatExamScore(s)}</td>
                       </tr>
                     ))}
                   </tbody>

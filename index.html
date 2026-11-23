@@ -377,6 +377,8 @@ const LocalDB = {
         if (!s.studentName) s.studentName = sc.studentName;
         s.examScore = sc.rawScore;
         s.examScoreOutOf30 = sc.score30;
+        s.scoreMax = sc.scoreMax;
+        s.scoreNote = sc.scoreNote;
         matched++;
       } else unmatched++;
     });

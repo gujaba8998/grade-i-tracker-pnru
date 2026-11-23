@@ -194,7 +194,7 @@ const AdminGrade = ({ user }) => {
                     <td style={{ padding:'10px 14px' }}><CauseBadge cause={s.cause} /></td>
                     <td style={{ padding:'10px 14px', fontSize:13 }}>
                       {s.examScore
-                        ? <span style={{ color:'#0284c7', fontWeight:600 }}>{s.examScore}<br/><span style={{ fontSize:11, color:'var(--text-dim)' }}>={s.examScoreOutOf30}/30</span></span>
+                        ? <span style={{ color:'#0284c7', fontWeight:600 }}>{s.examScore}<br/><span style={{ fontSize:11, color:'var(--text-dim)' }}>={window.formatExamScore(s)}</span></span>
                         : <span style={{ color:'var(--text-dim)' }}>—</span>}
                     </td>
                     <td style={{ padding:'10px 14px' }}><StatusBadge status={s.status} /></td>
@@ -239,7 +239,7 @@ const AdminGrade = ({ user }) => {
               </div>
               {editing.examScore && (
                 <div style={{ fontSize:12, color:'#0284c7', marginTop:6 }}>
-                  📊 คะแนนสอบปลายภาครอบ 2: <strong>{editing.examScore}</strong> ({editing.examScoreOutOf30}/30)
+                  📊 คะแนนสอบปลายภาครอบ 2: <strong>{editing.examScore}</strong> ({window.formatExamScore(editing)})
                 </div>
               )}
             </div>
