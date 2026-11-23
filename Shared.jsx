@@ -1,4 +1,14 @@
-// Shared UI Components
+window.formatExamScore = function(s) {
+  if (s.scoreNote === 'ขาดสอบ') return 'ขาดสอบ';
+  const value = s.score30 ?? s.examScoreOutOf30;
+  if (value == null || value === '') return '—';
+  return s.scoreMax == null || s.scoreMax === '' ? String(value) : value + '/' + s.scoreMax;
+};
+window.examStatsValues = function(rows) {
+  const present = rows.filter(s => s.scoreNote !== 'ขาดสอบ');
+  if (new Set(present.map(s => String(s.scoreMax ?? ''))).size !== 1) return [];
+  return present.map(s => Number(s.score30));
+};
 // Exported to window for use across all views
 
 const STATUS_OPTIONS = {

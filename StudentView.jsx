@@ -80,7 +80,7 @@ const StudentView = ({ studentId, onBack, theme, toggleTheme }) => {
                     </div>
                     {r.examScore && (
                       <div style={{ marginTop:10, display:'inline-flex', alignItems:'center', gap:8, background:'#e0f2fe', padding:'6px 14px', borderRadius:20, fontSize:13 }}>
-                        📊 คะแนนสอบปลายภาครอบ 2: <strong>{r.examScore}</strong> (เทียบเท่า {r.examScoreOutOf30}/30 คะแนน)
+                        📊 คะแนนสอบปลายภาครอบ 2: <strong>{r.examScore}</strong> ({window.formatExamScore(r)})
                       </div>
                     )}
                   </div>

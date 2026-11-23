@@ -17,11 +17,11 @@ const SHEET_HEADERS = {
   students: [
     'studentId','studentName','courseCode','courseName','section',
     'teacher','semester','bracketGrade','cause','examScore',
-    'examScoreOutOf30','status','newGrade','statusUpdatedAt','statusUpdatedBy','notes'
+    'examScoreOutOf30','status','newGrade','statusUpdatedAt','statusUpdatedBy','notes','scoreMax','scoreNote'
   ],
   examScores: [
     'studentId','studentName','courseCode','courseName','section',
-    'rawScore','score30','semester','importedAt'
+    'rawScore','score30','semester','importedAt','scoreMax','scoreNote'
   ],
   users: ['username','password','role','displayName','courseAccess'],
   log:   ['timestamp','action','studentId','studentName','courseCode','section','semester','field','oldValue','newValue','updatedBy'],
@@ -329,7 +329,7 @@ function lookupStudent(studentId) {
   if (!/^\d{10,15}$/.test(String(studentId || '').trim())) {
     return { success: false, error: 'รหัสนักศึกษาไม่ถูกต้อง', data: [] };
   }
-  const safeFields = ['studentId','courseCode','courseName','section','teacher','semester','bracketGrade','cause','examScore','examScoreOutOf30','status','newGrade'];
+  const safeFields = ['studentId','courseCode','courseName','section','teacher','semester','bracketGrade','cause','examScore','examScoreOutOf30','scoreMax','scoreNote','status','newGrade'];
   const rows = getStudents({ studentId: String(studentId).trim() }, null).data;
   return { success: true, data: rows.map(function(row) {
     const out = {};
@@ -442,10 +442,29 @@ function importStudents(students, semester, clearExisting) {
 }
 
 // ======== Exam Scores ========
+function ensureScoreColumns(sheet) {
+  const headers = sheet.getDataRange().getValues()[0].slice();
+  for (const field of ['scoreMax','scoreNote']) {
+    if (headers.indexOf(field) < 0) {
+      headers.push(field);
+      sheet.getRange(1, headers.length).setValue(field);
+    }
+  }
+  return headers;
+}
+
 function importExamScores(scores, semester) {
   const esSheet = getSheet('examScores');
   const targetSemester = normSemGAS(semester);
   if (!targetSemester) return { success: false, error: 'กรุณาระบุภาคการศึกษา' };
+  if (!Array.isArray(scores) || !scores.length || scores.some(s =>
+    !s || !s.studentId || !normCourseGAS(s.courseCode) || !normSectionGAS(s.section) ||
+    typeof s.score30 !== 'number' || !Number.isFinite(s.score30) || s.score30 < 0 ||
+    typeof s.scoreMax !== 'number' || !Number.isFinite(s.scoreMax) || s.score30 > s.scoreMax
+  )) return {success:false, error:'ข้อมูลคะแนนหรือคะแนนเต็มไม่ครบ กรุณาตรวจไฟล์ก่อนนำเข้า'};
+  const headers = ensureScoreColumns(esSheet);
+  const stuSheetForScale = getSheet('students');
+  ensureScoreColumns(stuSheetForScale);
   // Remove existing rows for this semester
   if (esSheet.getLastRow() > 1) {
     const esData = esSheet.getDataRange().getValues();
@@ -458,13 +477,17 @@ function importExamScores(scores, semester) {
   const validScores = (scores || []).filter(function(s) {
     return s.studentId && normCourseGAS(s.courseCode) && normSectionGAS(s.section);
   });
-  const rows = validScores.map(s => [
-    String(s.studentId).trim(), s.studentName || '', normCourseGAS(s.courseCode), s.courseName || '',
-    normSectionGAS(s.section), s.rawScore || '', Number(s.score30) || 0, targetSemester, now
-  ]);
+  const rows = validScores.map(s => {
+    const record = {studentId:String(s.studentId).trim(), studentName:s.studentName || '',
+      courseCode:normCourseGAS(s.courseCode), courseName:s.courseName || '', section:normSectionGAS(s.section),
+      rawScore:s.rawScore || '', score30:s.score30, semester:targetSemester, importedAt:now,
+      scoreMax:s.scoreMax, scoreNote:s.scoreNote === 'ขาดสอบ' ? 'ขาดสอบ' : ''};
+    return headers.map(h => record[h] ?? '');
+  });
   if (rows.length > 0) {
     const startRow = esSheet.getLastRow() + 1;
-    const semColIdx = SHEET_HEADERS.examScores.indexOf('semester');
+    const semColIdx = headers.indexOf('semester');
+    for (const field of ['courseCode','section','studentId','rawScore']) esSheet.getRange(startRow, headers.indexOf(field)+1, rows.length, 1).setNumberFormat('@');
     if (semColIdx > -1) esSheet.getRange(startRow, semColIdx + 1, rows.length, 1).setNumberFormat('@');
     esSheet.getRange(startRow, 1, rows.length, rows[0].length).setValues(rows);
   }
@@ -484,7 +507,9 @@ function importExamScores(scores, semester) {
           normSectionGAS(stuData[i][sc('section')]) === normSectionGAS(score.section)) {
         if (!stuData[i][sc('studentName')]) stuSheet.getRange(i+1, sc('studentName')+1).setValue(score.studentName || '');
         stuSheet.getRange(i+1, sc('examScore')+1).setValue(score.rawScore || '');
-        stuSheet.getRange(i+1, sc('examScoreOutOf30')+1).setValue(score.score30 || 0);
+        stuSheet.getRange(i+1, sc('examScoreOutOf30')+1).setValue(score.score30);
+        stuSheet.getRange(i+1, sc('scoreMax')+1).setValue(score.scoreMax);
+        stuSheet.getRange(i+1, sc('scoreNote')+1).setValue(score.scoreNote === 'ขาดสอบ' ? 'ขาดสอบ' : '');
         found = true;
         matched++;
         break;

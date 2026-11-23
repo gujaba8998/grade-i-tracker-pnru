@@ -120,12 +120,12 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
     const win = window.open('', '_blank');
     const sections = groups.map(g => {
       const sorted = [...g.students].sort((a,b) => Number(b.score30||0) - Number(a.score30||0));
-      const scores30 = sorted.map(s => Number(s.score30||0));
+      const scores30 = window.examStatsValues(sorted);
       const avg = scores30.length ? (scores30.reduce((a,b)=>a+b,0)/scores30.length).toFixed(2) : '—';
-      const rows = sorted.map((s, i) => `<tr><td style="text-align:center">${i+1}</td><td>${window.escapeHtml(s.studentId)}</td><td>${window.escapeHtml(s.studentName||'—')}</td><td style="text-align:center">${window.escapeHtml(s.rawScore||'—')}</td><td style="text-align:center;font-weight:700">${window.escapeHtml(s.score30)}</td></tr>`).join('');
+      const rows = sorted.map((s, i) => `<tr><td style="text-align:center">${i+1}</td><td>${window.escapeHtml(s.studentId)}</td><td>${window.escapeHtml(s.studentName||'—')}</td><td style="text-align:center">${window.escapeHtml(s.rawScore||'—')}</td><td style="text-align:center;font-weight:700">${window.escapeHtml(window.formatExamScore(s))}</td></tr>`).join('');
       return `<div class="course">
-        <div class="course-head"><strong>${window.escapeHtml(g.courseCode)} ${window.escapeHtml(g.courseName||'')}</strong> • หมู่ ${window.escapeHtml(g.section)} • ${g.students.length} คน • เฉลี่ย ${avg}/30</div>
-        <table><thead><tr><th style="width:36px">ที่</th><th style="width:130px">รหัสนักศึกษา</th><th>ชื่อ - สกุล</th><th style="width:90px">คะแนนดิบ</th><th style="width:90px">คะแนน(30)</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="course-head"><strong>${window.escapeHtml(g.courseCode)} ${window.escapeHtml(g.courseName||'')}</strong> • หมู่ ${window.escapeHtml(g.section)} • ${g.students.length} คน • เฉลี่ย ${avg}</div>
+        <table><thead><tr><th style="width:36px">ที่</th><th style="width:130px">รหัสนักศึกษา</th><th>ชื่อ - สกุล</th><th style="width:90px">คะแนนดิบ</th><th style="width:90px">คะแนนที่ได้/เต็ม</th></tr></thead><tbody>${rows}</tbody></table>
       </div>`;
     }).join('');
     win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8">
@@ -352,7 +352,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
                           <td style={{ padding:'10px 14px' }}><GradeBadge grade={s.bracketGrade} /></td>
                           <td style={{ padding:'10px 14px' }}><CauseBadge cause={s.cause} /></td>
                           <td style={{ padding:'10px 14px', fontSize:13 }}>
-                            {s.examScore ? <span style={{color:'#0284c7',fontWeight:600}}>{s.examScore} ({s.examScoreOutOf30}/30)</span> : <span style={{color:'var(--text-dim)'}}>—</span>}
+                            {s.examScore ? <span style={{color:'#0284c7',fontWeight:600}}>{s.examScore} ({window.formatExamScore(s)})</span> : <span style={{color:'var(--text-dim)'}}>—</span>}
                           </td>
                           <td style={{ padding:'10px 14px' }}><StatusBadge status={s.status} /></td>
                         </tr>
@@ -406,7 +406,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
                 </span>
               </div>
               {Object.values(scoreGroups).map((g, gi) => {
-                const scores30 = g.students.map(s => Number(s.score30 || 0));
+                const scores30 = window.examStatsValues(g.students);
                 const avg = scores30.length ? (scores30.reduce((a,b)=>a+b,0)/scores30.length).toFixed(2) : '—';
                 const max = scores30.length ? Math.max(...scores30) : '—';
                 const min = scores30.length ? Math.min(...scores30) : '—';
@@ -422,7 +422,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
                           {[{label:'เฉลี่ย',val:avg,color:'#0d2c6b'},{label:'สูงสุด',val:max,color:'#16a34a'},{label:'ต่ำสุด',val:min,color:'#dc2626'}].map(x=>(
                             <div key={x.label} style={{ textAlign:'center' }}>
                               <div style={{ color:'var(--text-dim)' }}>{x.label}</div>
-                              <div style={{ color:x.color, fontWeight:700, fontSize:18 }}>{x.val}<span style={{fontSize:11,color:'var(--text-dim)',fontWeight:400}}>/30</span></div>
+                              <div style={{ color:x.color, fontWeight:700, fontSize:18 }}>{x.val}<span style={{fontSize:11,color:'var(--text-dim)',fontWeight:400}}></span></div>
                             </div>
                           ))}
                         </div>
@@ -431,7 +431,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
                     <div style={{ overflowX:'auto' }}>
                       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:14 }}>
                         <thead><tr style={{background:'var(--surface-2)'}}>
-                          {['#','รหัสนักศึกษา','ชื่อ-สกุล','คะแนนดิบ','คะแนน(30)'].map(h=>(
+                          {['#','รหัสนักศึกษา','ชื่อ-สกุล','คะแนนดิบ','คะแนนที่ได้/เต็ม'].map(h=>(
                             <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:12, fontWeight:600, color:'var(--text-muted)', borderBottom:'1px solid var(--border)', whiteSpace:'nowrap' }}>{h}</th>
                           ))}
                         </tr></thead>
@@ -446,7 +446,7 @@ const TeacherView = ({ user, onLogout, theme, toggleTheme }) => {
                               <td style={{ padding:'9px 14px', fontFamily:'monospace', fontSize:13, color:'var(--text)' }}>{s.studentId}</td>
                               <td style={{ padding:'9px 14px', fontWeight:500, color:'var(--text)' }}>{s.studentName || <span style={{color:'var(--text-dim)'}}>—</span>}</td>
                               <td style={{ padding:'9px 14px', color:'#0284c7', fontWeight:600 }}>{s.rawScore}</td>
-                              <td style={{ padding:'9px 14px', fontWeight:700, fontSize:16, color:'#16a34a' }}>{s.score30}</td>
+                              <td style={{ padding:'9px 14px', fontWeight:700, fontSize:16, color:'#16a34a' }}>{window.formatExamScore(s)}</td>
                             </tr>
                           ))}
                         </tbody>
